@@ -12,7 +12,7 @@ async function claimJob() {
   try {
     await client.query("BEGIN");
     const found = await client.query(
-      `SELECT id,lesson_id,attempts FROM production_jobs
+      `SELECT id,lesson_id,attempts,production_config FROM production_jobs
        WHERE status='queued'
        ORDER BY created_at
        LIMIT 1 FOR UPDATE SKIP LOCKED`
@@ -39,7 +39,7 @@ async function claimJob() {
   }
 }
 
-async function makeScript(lesson) {
+async function makeScript(lesson, productionConfig = {}) {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY غير مضبوط؛ لا يمكن إعداد السيناريو تلقائياً.");
   }
@@ -77,7 +77,7 @@ async function processJob(job) {
     throw new Error("الدرس غير موجود أو لم يعد معتمداً");
   }
   const lesson = lessonResult.rows[0];
-  const script = await makeScript(lesson);
+  const script = await makeScript(lesson, job.production_config || {});
   await query(
     `UPDATE production_jobs SET script_json=$2,progress=25,stage='السيناريو جاهز؛ بانتظار خدمة توليد الفيديو',
      status='waiting_provider',updated_at=NOW() WHERE id=$1`,
