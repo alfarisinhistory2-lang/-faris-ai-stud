@@ -15,7 +15,7 @@ async function claimJob() {
       `SELECT id,lesson_id,attempts FROM production_jobs
        WHERE status='queued'
        ORDER BY created_at
-       FOR UPDATE SKIP LOCKED LIMIT 1`
+       LIMIT 1 FOR UPDATE SKIP LOCKED`
     );
     if (!found.rowCount) {
       await client.query("COMMIT");
@@ -84,11 +84,24 @@ async function processJob(job) {
     [job.id, JSON.stringify(script)]
   );
 
-  // Deliberately do not claim a finished video: a real video-generation provider
-  // and durable object storage must be configured before this stage can complete.
+  // Keep the prepared script safely available until a real video provider is configured.
   if (!process.env.VIDEO_PROVIDER_URL || !process.env.VIDEO_PROVIDER_API_KEY) {
-    throw new Error("السيناريو أُعدّ، لكن خدمة توليد الفيديو والتخزين الدائم لم تُربطا بعد.");
+    await query(
+      `UPDATE production_jobs SET status='waiting_provider',progress=25,
+       stage='السيناريو جاهز؛ بانتظار ربط مزود الفيديو',
+       worker_id=NULL,locked_at=NULL,updated_at=NOW() WHERE id=$1`,
+      [job.id]
+    );
+    console.log(`Job ${job.id}: script prepared; waiting for video provider configuration.`);
+    return;
   }
+
+  await query(
+    `UPDATE production_jobs SET status='processing',progress=35,
+     stage='إرسال السيناريو إلى مزود الفيديو',locked_at=NOW(),updated_at=NOW()
+     WHERE id=$1`,
+    [job.id]
+  );
 
   const providerResponse = await fetch(process.env.VIDEO_PROVIDER_URL, {
     method: "POST",
@@ -124,7 +137,7 @@ async function loop() {
         await query(
           `UPDATE production_jobs SET status='queued',worker_id=NULL,locked_at=NULL,
            stage='استئناف بعد انقطاع العامل',updated_at=NOW()
-           WHERE status IN ('processing','waiting_provider')
+           WHERE status='processing'
              AND locked_at < NOW() - INTERVAL '10 minutes'`
         );
         await delay(pollMs);
