@@ -8,139 +8,131 @@ import { query, pool } from "./db.js";
 const port = Number(process.env.PORT || 10000);
 const apiToken = process.env.FARIS_API_TOKEN;
 const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
+const allowedOrigin = process.env.APP_ORIGIN || "*";
 
-function send(res, status, payload) {
-  res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff"
-  });
+function send(res,status,payload){
+  res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});
   res.end(JSON.stringify(payload));
 }
-
-function authorized(req) {
-  return Boolean(apiToken) && req.headers.authorization === `Bearer ${apiToken}`;
+function cors(req,res){
+  const origin=req.headers.origin||"*";
+  res.setHeader("Access-Control-Allow-Origin",allowedOrigin==="*"?origin:allowedOrigin);
+  res.setHeader("Vary","Origin");
+  res.setHeader("Access-Control-Allow-Headers","Authorization,Content-Type,Idempotency-Key");
+  res.setHeader("Access-Control-Allow-Methods","GET,POST,OPTIONS");
+}
+function authorized(req){return Boolean(apiToken)&&req.headers.authorization===`Bearer ${apiToken}`;}
+async function readJson(req,limit=2_000_000){
+  let body="";
+  for await(const chunk of req){body+=chunk;if(body.length>limit)throw new Error("REQUEST_TOO_LARGE");}
+  return body?JSON.parse(body):{};
+}
+async function gemini(prompt){
+  if(!process.env.GEMINI_API_KEY)throw new Error("GEMINI_API_KEY غير مضبوط في إعدادات الخادم.");
+  const model=process.env.GEMINI_MODEL||"gemini-2.5-flash";
+  const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:"application/json",temperature:0.2}})
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error?.message||`Gemini API error ${response.status}`);
+  const raw=data.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("");
+  if(!raw)throw new Error("Gemini لم يرجع نتيجة قابلة للقراءة.");
+  return JSON.parse(raw);
 }
 
-async function readJson(req) {
-  let body = "";
-  for await (const chunk of req) {
-    body += chunk;
-    if (body.length > 32000) throw new Error("REQUEST_TOO_LARGE");
-  }
-  return body ? JSON.parse(body) : {};
-}
-
-const server = http.createServer(async (req, res) => {
-  try {
-    const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-
-    if (req.method === "GET" && url.pathname === "/") {
-      const page = await readFile(path.join(publicDir, "index.html"));
-      res.writeHead(200, {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-cache",
-        "X-Content-Type-Options": "nosniff"
-      });
+const server=http.createServer(async(req,res)=>{
+  cors(req,res);
+  if(req.method==="OPTIONS"){res.writeHead(204);return res.end();}
+  try{
+    const url=new URL(req.url,`http://${req.headers.host||"localhost"}`);
+    if(req.method==="GET"&&url.pathname==="/"){
+      const page=await readFile(path.join(publicDir,"index.html"));
+      res.writeHead(200,{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-cache","X-Content-Type-Options":"nosniff"});
       return res.end(page);
     }
+    if(req.method==="GET"&&url.pathname==="/health"){
+      try{await query("SELECT 1");return send(res,200,{status:"ok",service:"FARIS AI STUDIO",database:"connected",geminiConfigured:Boolean(process.env.GEMINI_API_KEY)});}
+      catch{return send(res,503,{status:"degraded",service:"FARIS AI STUDIO",database:"unavailable"});}
+    }
+    if(!authorized(req))return send(res,apiToken?401:503,{error:apiToken?"UNAUTHORIZED":"SERVER_CONFIGURATION_REQUIRED",message:apiToken?"يلزم رمز وصول صحيح.":"اضبط FARIS_API_TOKEN في إعدادات الخادم."});
 
-    if (req.method === "GET" && url.pathname === "/health") {
-      try {
-        await query("SELECT 1");
-        return send(res, 200, { status: "ok", service: "FARIS AI STUDIO", database: "connected" });
-      } catch {
-        return send(res, 503, { status: "degraded", service: "FARIS AI STUDIO", database: "unavailable" });
-      }
+    if(req.method==="POST"&&url.pathname==="/api/books/analyze"){
+      const body=await readJson(req,1_800_000);
+      const filename=String(body.filename||"كتاب.pdf").slice(0,180);
+      const grade=String(body.grade||"").slice(0,100);
+      const text=String(body.extracted_text||"").trim();
+      if(!text||text.length<150)return send(res,400,{error:"PDF_TEXT_REQUIRED",message:"لم يتم استخراج نص كافٍ من ملف PDF. جرّب نسخة PDF نصية وليست صوراً ممسوحة."});
+      if(text.length>1_200_000)return send(res,413,{error:"TEXT_TOO_LARGE",message:"الدرس طويل جداً؛ قسّم الكتاب إلى ملف أصغر أو درس منفصل."});
+      const prompt=`أنت محلل كتب مدرسية. حلّل النص المرفق فقط ولا تضف أي معلومة من خارج المصدر. أعد JSON صالحاً بهذا الشكل: {"book_title":"اسم الكتاب إن وجد","units":[{"unit_name":"اسم الوحدة","lessons":[{"lesson_name":"اسم الدرس كما ورد","key_points":["نقطة مهمة مقتبسة بالمعنى من المصدر"],"source_excerpt":"مقتطف داعم من النص","learning_objectives":["هدف تعليمي"]}]}],"coverage_notes":["ملاحظات عن النص الناقص أو الصفحات غير الواضحة"]}. لا تخترع وحدات أو دروساً. إذا لم تجد بنية واضحة اجعل الوحدات فارغة واشرح السبب في coverage_notes. الصف: ${grade||"غير محدد"}. اسم الملف: ${filename}. النص: ${text}`;
+      const analysis=await gemini(prompt);
+      const saved=await query(`INSERT INTO book_analyses(filename,grade,extracted_text,analysis_json,status) VALUES($1,$2,$3,$4,'pending') RETURNING id,filename,grade,status,created_at`,[filename,grade,text,JSON.stringify(analysis)]);
+      return send(res,201,{analysis_id:saved.rows[0].id,book:saved.rows[0],analysis});
     }
 
-    if (!authorized(req)) {
-      return send(res, apiToken ? 401 : 503, {
-        error: apiToken ? "UNAUTHORIZED" : "SERVER_CONFIGURATION_REQUIRED",
-        message: apiToken ? "يلزم رمز وصول صحيح." : "يجب ضبط FARIS_API_TOKEN في إعدادات الخادم."
-      });
+    const approveMatch=url.pathname.match(/^\/api\/books\/([0-9a-f-]{36})\/approve$/i);
+    if(req.method==="POST"&&approveMatch){
+      const body=await readJson(req,300_000);
+      const selected=Array.isArray(body.lessons)?body.lessons:[];
+      if(!selected.length||selected.length>100)return send(res,400,{error:"LESSONS_REQUIRED",message:"اختر درساً واحداً على الأقل لاعتماده."});
+      const book=await query("SELECT * FROM book_analyses WHERE id=$1 AND status='pending'",[approveMatch[1]]);
+      if(!book.rowCount)return send(res,404,{error:"ANALYSIS_NOT_FOUND",message:"التحليل غير موجود أو سبق اعتماده."});
+      const client=await pool.connect();
+      try{
+        await client.query("BEGIN");
+        const created=[];
+        for(const item of selected){
+          const unit=String(item.unit_name||"").trim().slice(0,250);
+          const name=String(item.lesson_name||"").trim().slice(0,250);
+          const source=String(item.source_text||"").trim();
+          if(!name||source.length<30)throw new Error("كل درس يحتاج اسماً ومصدراً نصياً كافياً.");
+          const inserted=await client.query("INSERT INTO lessons(grade,unit_name,lesson_name,source_text,approved) VALUES($1,$2,$3,$4,TRUE) RETURNING id,grade,unit_name,lesson_name",[
+            String(body.grade||book.rows[0].grade||"غير محدد").slice(0,100),unit,name,source
+          ]);
+          created.push(inserted.rows[0]);
+        }
+        await client.query("UPDATE book_analyses SET status='approved',updated_at=NOW() WHERE id=$1",[approveMatch[1]]);
+        await client.query("COMMIT");
+        return send(res,201,{lessons:created,count:created.length});
+      }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
     }
 
-    if (req.method === "GET" && url.pathname === "/api/lessons") {
-      const result = await query(
-        "SELECT id, grade, unit_name, lesson_name FROM lessons WHERE approved=TRUE ORDER BY grade, unit_name, lesson_name LIMIT 200"
-      );
-      return send(res, 200, { lessons: result.rows });
+    if(req.method==="GET"&&url.pathname==="/api/lessons"){
+      const result=await query("SELECT id,grade,unit_name,lesson_name FROM lessons WHERE approved=TRUE ORDER BY grade,unit_name,lesson_name LIMIT 300");
+      return send(res,200,{lessons:result.rows});
     }
-
-    if (req.method === "GET" && url.pathname === "/api/jobs") {
-      const result = await query(
-        `SELECT j.id, j.lesson_id, l.grade, l.unit_name, l.lesson_name,
-                j.status, j.stage, j.progress, j.video_url, j.created_at, j.updated_at
-         FROM production_jobs j JOIN lessons l ON l.id=j.lesson_id
-         ORDER BY j.created_at DESC LIMIT 50`
-      );
-      return send(res, 200, { jobs: result.rows });
+    if(req.method==="GET"&&url.pathname==="/api/jobs"){
+      const result=await query(`SELECT j.id,j.lesson_id,l.grade,l.unit_name,l.lesson_name,j.status,j.stage,j.progress,j.video_url,j.created_at,j.updated_at FROM production_jobs j JOIN lessons l ON l.id=j.lesson_id ORDER BY j.created_at DESC LIMIT 50`);
+      return send(res,200,{jobs:result.rows});
     }
-
-    if (req.method === "POST" && url.pathname === "/api/jobs") {
-      const body = await readJson(req);
-      const lessonId = String(body.lesson_id || "");
-      const idempotencyKey = String(req.headers["idempotency-key"] || body.idempotency_key || "");
-
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(lessonId)) {
-        return send(res, 400, { error: "INVALID_LESSON_ID", message: "معرّف الدرس غير صالح." });
-      }
-      if (idempotencyKey.length < 8 || idempotencyKey.length > 128) {
-        return send(res, 400, { error: "IDEMPOTENCY_KEY_REQUIRED", message: "مفتاح الطلب الفريد مطلوب." });
-      }
-
-      const lesson = await query("SELECT id FROM lessons WHERE id=$1 AND approved=TRUE", [lessonId]);
-      if (!lesson.rowCount) {
-        return send(res, 404, { error: "APPROVED_LESSON_NOT_FOUND", message: "الدرس غير موجود أو غير معتمد." });
-      }
-
-      const inserted = await query(
-        `INSERT INTO production_jobs (lesson_id, idempotency_key)
-         VALUES ($1, $2)
-         ON CONFLICT (idempotency_key) DO NOTHING
-         RETURNING id, status, stage, progress, created_at`,
-        [lessonId, idempotencyKey]
-      );
-      if (inserted.rowCount) return send(res, 201, { job: inserted.rows[0], reused: false });
-
-      const existing = await query(
-        "SELECT id, status, stage, progress, created_at FROM production_jobs WHERE idempotency_key=$1",
-        [idempotencyKey]
-      );
-      return send(res, 200, { job: existing.rows[0], reused: true });
+    if(req.method==="POST"&&url.pathname==="/api/jobs"){
+      const body=await readJson(req);
+      const lessonId=String(body.lesson_id||"");
+      const idempotencyKey=String(req.headers["idempotency-key"]||body.idempotency_key||"");
+      if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(lessonId))return send(res,400,{error:"INVALID_LESSON_ID",message:"معرّف الدرس غير صالح."});
+      if(idempotencyKey.length<8||idempotencyKey.length>128)return send(res,400,{error:"IDEMPOTENCY_KEY_REQUIRED",message:"مفتاح الطلب الفريد مطلوب."});
+      const lesson=await query("SELECT id FROM lessons WHERE id=$1 AND approved=TRUE",[lessonId]);
+      if(!lesson.rowCount)return send(res,404,{error:"APPROVED_LESSON_NOT_FOUND",message:"الدرس غير موجود أو غير معتمد."});
+      const config={style:String(body.style||"documentary").slice(0,50),presenter:String(body.presenter||"Faris").slice(0,80)};
+      const inserted=await query(`INSERT INTO production_jobs(lesson_id,idempotency_key,production_config) VALUES($1,$2,$3) ON CONFLICT(idempotency_key) DO NOTHING RETURNING id,status,stage,progress,created_at`,[lessonId,idempotencyKey,JSON.stringify(config)]);
+      if(inserted.rowCount)return send(res,201,{job:inserted.rows[0],reused:false});
+      const existing=await query("SELECT id,status,stage,progress,created_at FROM production_jobs WHERE idempotency_key=$1",[idempotencyKey]);
+      return send(res,200,{job:existing.rows[0],reused:true});
     }
-
-    const jobMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})$/i);
-    if (req.method === "GET" && jobMatch) {
-      const result = await query(
-        `SELECT id, lesson_id, status, stage, progress, script_json,
-                video_url, error_message, created_at, updated_at, completed_at
-         FROM production_jobs WHERE id=$1`,
-        [jobMatch[1]]
-      );
-      if (!result.rowCount) return send(res, 404, { error: "JOB_NOT_FOUND" });
-      return send(res, 200, { job: result.rows[0] });
+    const jobMatch=url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})$/i);
+    if(req.method==="GET"&&jobMatch){
+      const result=await query("SELECT id,lesson_id,status,stage,progress,script_json,video_url,error_message,created_at,updated_at,completed_at FROM production_jobs WHERE id=$1",[jobMatch[1]]);
+      if(!result.rowCount)return send(res,404,{error:"JOB_NOT_FOUND"});
+      return send(res,200,{job:result.rows[0]});
     }
-
-    return send(res, 404, { error: "NOT_FOUND" });
-  } catch (error) {
-    if (error.message === "REQUEST_TOO_LARGE") return send(res, 413, { error: "REQUEST_TOO_LARGE" });
-    if (error instanceof SyntaxError) return send(res, 400, { error: "INVALID_JSON" });
-    console.error("Request failed:", error.message);
-    return send(res, 500, { error: "INTERNAL_ERROR" });
+    return send(res,404,{error:"NOT_FOUND"});
+  }catch(error){
+    if(error.message==="REQUEST_TOO_LARGE")return send(res,413,{error:"REQUEST_TOO_LARGE"});
+    if(error instanceof SyntaxError)return send(res,400,{error:"INVALID_JSON"});
+    console.error("Request failed:",error.message);
+    return send(res,500,{error:"INTERNAL_ERROR",message:error.message});
   }
 });
-
-server.listen(port, "0.0.0.0", () => {
-  console.log(`FARIS AI STUDIO listening on port ${port}`);
-});
-
-async function shutdown() {
-  server.close(async () => {
-    await pool.end();
-    process.exit(0);
-  });
-}
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+server.listen(port,"0.0.0.0",()=>console.log(`FARIS AI STUDIO listening on port ${port}`));
+async function shutdown(){server.close(async()=>{await pool.end();process.exit(0);});}
+process.on("SIGTERM",shutdown);process.on("SIGINT",shutdown);
