@@ -1,9 +1,13 @@
 import "dotenv/config";
 import http from "node:http";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { query, pool } from "./db.js";
 
 const port = Number(process.env.PORT || 10000);
 const apiToken = process.env.FARIS_API_TOKEN;
+const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
 
 function send(res, status, payload) {
   res.writeHead(status, {
@@ -47,6 +51,23 @@ const server = http.createServer(async (req, res) => {
         error: apiToken ? "UNAUTHORIZED" : "SERVER_CONFIGURATION_REQUIRED",
         message: apiToken ? "يلزم رمز وصول صحيح." : "يجب ضبط FARIS_API_TOKEN في إعدادات الخادم."
       });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/lessons") {
+      const result = await query(
+        "SELECT id, grade, unit_name, lesson_name FROM lessons WHERE approved=TRUE ORDER BY grade, unit_name, lesson_name LIMIT 200"
+      );
+      return send(res, 200, { lessons: result.rows });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/jobs") {
+      const result = await query(
+        `SELECT j.id, j.lesson_id, l.grade, l.unit_name, l.lesson_name,
+                j.status, j.stage, j.progress, j.video_url, j.created_at, j.updated_at
+         FROM production_jobs j JOIN lessons l ON l.id=j.lesson_id
+         ORDER BY j.created_at DESC LIMIT 50`
+      );
+      return send(res, 200, { jobs: result.rows });
     }
 
     if (req.method === "POST" && url.pathname === "/api/jobs") {
