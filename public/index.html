@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#21143d">
+<title>FARIS AI STUDIO</title>
+<style>
+:root{color-scheme:dark;--bg:#100b1d;--panel:#1c1530;--panel2:#251b3c;--gold:#e2b84f;--muted:#b9b1ca;--line:#3a2e52;--white:#fff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% 0%,#38245b 0,transparent 42%),var(--bg);color:var(--white);font-family:Tahoma,Arial,sans-serif;min-height:100vh}
+.wrap{max-width:1100px;margin:auto;padding:22px}.top{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:16px 0 24px}.brand{display:flex;align-items:center;gap:12px}.mark{width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#f0cf77,#a87923);display:grid;place-items:center;color:#21143d;font-size:25px;font-weight:900}.brand h1{font-size:19px;margin:0}.brand p{margin:5px 0 0;color:var(--muted);font-size:12px}.pill{border:1px solid var(--line);border-radius:999px;padding:8px 12px;color:var(--muted);font-size:12px}
+.hero{background:linear-gradient(120deg,#30204e,#1d1630 68%);border:1px solid #594578;border-radius:24px;padding:28px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:180px;height:180px;border:1px solid #806637;border-radius:50%;left:-45px;top:-70px;box-shadow:0 0 0 22px #e2b84f0a,0 0 0 45px #e2b84f08}.eyebrow{color:var(--gold);font-size:12px;letter-spacing:1px}.hero h2{font-size:clamp(25px,5vw,38px);margin:12px 0}.hero p{color:#d3cadd;max-width:650px;line-height:1.9;margin:0}
+.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;margin-top:18px}.card{background:#1a1429;border:1px solid var(--line);border-radius:20px;padding:20px;min-width:0}.card h3{font-size:16px;margin:0 0 16px}.muted{color:var(--muted);font-size:13px;line-height:1.7}.field{display:grid;gap:7px;margin:13px 0}.field label{font-size:12px;color:#d7cfe2}.field input,.field select{width:100%;padding:13px 14px;border-radius:12px;border:1px solid #4a3a63;background:#100b1d;color:white;outline:none}.field input:focus,.field select:focus{border-color:var(--gold)}button{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;background:linear-gradient(120deg,#f0cf77,#c08b2e);color:#21142f}button.secondary{background:#302345;color:#eee;border:1px solid #57456f}button:disabled{opacity:.5;cursor:not-allowed}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.status{font-size:12px;color:var(--muted);min-height:22px;margin-top:10px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{padding:14px;background:#241b37;border:1px solid #3b2d50;border-radius:14px}.metric strong{font-size:23px;display:block;color:var(--gold)}.metric span{font-size:11px;color:var(--muted)}
+.list{display:grid;gap:10px}.job{background:#241b37;border:1px solid #3b2d50;border-radius:14px;padding:13px}.jobtop{display:flex;justify-content:space-between;gap:10px;align-items:center}.job small{color:var(--muted)}.bar{height:6px;background:#100b1d;border-radius:9px;overflow:hidden;margin:11px 0 7px}.bar i{display:block;height:100%;background:linear-gradient(90deg,#b88a35,#f0d17b)}.empty{border:1px dashed #4a3a63;border-radius:14px;padding:20px;text-align:center;color:var(--muted);font-size:13px}
+.footer{padding:25px 4px;color:#8f849f;font-size:11px;text-align:center}
+@media(max-width:760px){.wrap{padding:14px}.grid{grid-template-columns:1fr}.top{align-items:flex-start}.hero{padding:22px}.metrics{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><div class="brand"><div class="mark">ف</div><div><h1>FARIS AI STUDIO</h1><p>استوديو الإنتاج التعليمي الذكي</p></div></div><span class="pill" id="health">جاري فحص الاتصال...</span></header>
+<section class="hero"><span class="eyebrow">من الفكرة إلى المحتوى التعليمي</span><h2>اصنع درسك القادم بذكاء.</h2><p>مساحة عمل لإعداد السيناريوهات وإدارة مهام الإنتاج ومتابعة تقدمها. ابدأ من درس معتمد، وتابع حالة المهمة من لوحة واحدة.</p></section>
+<section class="grid">
+<div class="card">
+<h3>🔐 اتصال لوحة العمل</h3>
+<p class="muted">أدخل رمز الوصول الذي أعددته في إعدادات الخادم. يبقى الرمز في ذاكرة هذه الصفحة فقط ولا يُحفظ على الجهاز.</p>
+<div class="field"><label for="token">رمز الوصول FARIS_API_TOKEN</label><input id="token" type="password" autocomplete="off" placeholder="ألصق رمز الوصول هنا"></div>
+<div class="actions"><button id="connect">اتصال آمن</button><button class="secondary" id="disconnect">مسح الرمز</button></div>
+<div class="status" id="authStatus" aria-live="polite"></div>
+</div>
+<div class="card">
+<h3>📊 حالة الاستوديو</h3>
+<div class="metrics"><div class="metric"><strong id="lessonCount">—</strong><span>دروس معتمدة</span></div><div class="metric"><strong id="jobCount">—</strong><span>مهام ظاهرة</span></div><div class="metric"><strong id="doneCount">—</strong><span>مهام مكتملة</span></div></div>
+<p class="muted" style="margin-top:14px">لا تظهر بيانات الدروس والمهام إلا بعد نجاح الاتصال والتحقق من قاعدة البيانات.</p>
+</div>
+<div class="card">
+<h3>🎬 إنشاء مهمة إنتاج</h3>
+<p class="muted">اختر درساً معتمداً لإضافة مهمة إلى قائمة العامل الخلفي.</p>
+<div class="field"><label for="lesson">الدرس المعتمد</label><select id="lesson"><option value="">اتصل أولاً لتحميل الدروس</option></select></div>
+<div class="actions"><button id="create" disabled>إنشاء مهمة إنتاج</button><button class="secondary" id="refresh" disabled>تحديث البيانات</button></div>
+<div class="status" id="jobStatus" aria-live="polite"></div>
+</div>
+<div class="card">
+<h3>🧩 مراحل العمل</h3>
+<div class="list">
+<div class="job"><div class="jobtop"><b>01 · اعتماد المصدر</b><small>قبل الإنتاج</small></div><small>يجب أن يكون الدرس معتمداً ومحتواه موثقاً.</small></div>
+<div class="job"><div class="jobtop"><b>02 · إعداد السيناريو</b><small>Gemini</small></div><small>إعداد أهداف ومشاهد اعتماداً على المصدر فقط.</small></div>
+<div class="job"><div class="jobtop"><b>03 · إنتاج الفيديو</b><small>يتطلب مزوداً خارجياً</small></div><small>هذه المرحلة غير مفعلة حتى ربط مزود فيديو وتخزين دائم.</small></div>
+</div>
+</div>
+</section>
+<section class="card" style="margin-top:16px"><div class="jobtop"><h3 style="margin:0">📁 مهام الإنتاج</h3><small id="lastUpdate">لم يتم التحديث</small></div><div class="list" id="jobs" style="margin-top:15px"><div class="empty">اتصل بلوحة العمل لعرض المهام.</div></div></section>
+<div class="footer">FARIS AI STUDIO · منصة قيد التطوير · احرص على عدم مشاركة رمز الوصول مع الآخرين</div>
+</div>
+<script>
+let accessToken = "";
+const $ = id => document.getElementById(id);
+const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(path, options={}) {
+  const response = await fetch(path,{...options,headers:{"Content-Type":"application/json","Authorization":"Bearer "+accessToken,...(options.headers||{})}});
+  const data = await response.json().catch(()=>({error:"INVALID_RESPONSE"}));
+  if(!response.ok) throw new Error(data.message || data.error || "تعذر تنفيذ الطلب");
+  return data;
+}
+async function checkHealth(){
+  try{const r=await fetch("/health");const d=await r.json();$("health").textContent=d.database==="connected"?"الخادم وقاعدة البيانات متصلان":"الخادم أو قاعدة البيانات غير جاهز";$("health").style.color=d.database==="connected"?"#9cdbad":"#f0c77a";}
+  catch{$("health").textContent="تعذر الاتصال بالخادم";}
+}
+function statusLabel(s){return ({queued:"في الانتظار",processing:"قيد المعالجة",waiting_provider:"بانتظار مزود الفيديو",completed:"مكتملة",failed:"تعذرت",cancelled:"ملغاة"})[s]||s;}
+async function loadData(){
+  const [lessons,jobs]=await Promise.all([api("/api/lessons"),api("/api/jobs")]);
+  $("lessonCount").textContent=lessons.lessons.length;
+  $("jobCount").textContent=jobs.jobs.length;
+  $("doneCount").textContent=jobs.jobs.filter(x=>x.status==="completed").length;
+  $("lesson").innerHTML='<option value="">اختر الدرس</option>'+lessons.lessons.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.grade+" · "+(x.unit_name?x.unit_name+" · ":"")+x.lesson_name)+'</option>').join("");
+  $("jobs").innerHTML=jobs.jobs.length?jobs.jobs.map(j=>'<div class="job"><div class="jobtop"><b>'+esc(j.lesson_name||"مهمة إنتاج")+'</b><small>'+esc(statusLabel(j.status))+'</small></div><div class="bar"><i style="width:'+Math.max(0,Math.min(100,Number(j.progress)||0))+'%"></i></div><div class="jobtop"><small>'+esc(j.stage||"")+'</small><small>'+Number(j.progress||0)+'%</small></div>'+(j.video_url?'<p><a href="'+esc(j.video_url)+'" target="_blank" rel="noopener">فتح الفيديو الناتج</a></p>':"")+'</div>').join(""):'<div class="empty">لا توجد مهام إنتاج حتى الآن.</div>';
+  $("lastUpdate").textContent="آخر تحديث: "+new Date().toLocaleTimeString("ar");
+}
+$("connect").addEventListener("click",async()=>{
+  const value=$("token").value.trim();if(!value){$("authStatus").textContent="أدخل رمز الوصول أولاً.";return;}
+  accessToken=value;
+  try{await loadData();$("authStatus").textContent="تم الاتصال بنجاح."; $("create").disabled=false;$("refresh").disabled=false;}
+  catch(e){accessToken="";$("authStatus").textContent="فشل الاتصال: "+e.message;}
+});
+$("disconnect").addEventListener("click",()=>{accessToken="";$("token").value="";$("create").disabled=true;$("refresh").disabled=true;$("authStatus").textContent="تم مسح الرمز من ذاكرة الصفحة.";});
+$("refresh").addEventListener("click",async()=>{try{await loadData();$("jobStatus").textContent="تم تحديث البيانات.";}catch(e){$("jobStatus").textContent=e.message;}});
+$("create").addEventListener("click",async()=>{
+  const lesson_id=$("lesson").value;if(!lesson_id){$("jobStatus").textContent="اختر درساً معتمداً.";return;}
+  $("create").disabled=true;$("jobStatus").textContent="جارٍ إنشاء المهمة...";
+  try{const idempotencyKey=crypto.randomUUID();const r=await api("/api/jobs",{method:"POST",headers:{"Idempotency-Key":idempotencyKey},body:JSON.stringify({lesson_id})});$("jobStatus").textContent=r.reused?"هذه المهمة موجودة مسبقاً.":"تمت إضافة المهمة إلى قائمة الإنتاج.";await loadData();}
+  catch(e){$("jobStatus").textContent=e.message;}
+  finally{$("create").disabled=false;}
+});
+checkHealth();setInterval(checkHealth,30000);
+</script>
+</body></html>
