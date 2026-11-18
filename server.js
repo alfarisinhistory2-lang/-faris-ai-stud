@@ -19,16 +19,14 @@ function send(res, status, payload) {
 }
 
 function authorized(req) {
-  if (!apiToken) return false;
-  const header = req.headers.authorization || "";
-  return header === `Bearer ${apiToken}`;
+  return Boolean(apiToken) && req.headers.authorization === `Bearer ${apiToken}`;
 }
 
 async function readJson(req) {
   let body = "";
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 32_000) throw new Error("REQUEST_TOO_LARGE");
+    if (body.length > 32000) throw new Error("REQUEST_TOO_LARGE");
   }
   return body ? JSON.parse(body) : {};
 }
@@ -37,7 +35,17 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 
-    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
+    if (req.method === "GET" && url.pathname === "/") {
+      const page = await readFile(path.join(publicDir, "index.html"));
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "X-Content-Type-Options": "nosniff"
+      });
+      return res.end(page);
+    }
+
+    if (req.method === "GET" && url.pathname === "/health") {
       try {
         await query("SELECT 1");
         return send(res, 200, { status: "ok", service: "FARIS AI STUDIO", database: "connected" });
@@ -79,15 +87,12 @@ const server = http.createServer(async (req, res) => {
         return send(res, 400, { error: "INVALID_LESSON_ID", message: "معرّف الدرس غير صالح." });
       }
       if (idempotencyKey.length < 8 || idempotencyKey.length > 128) {
-        return send(res, 400, { error: "IDEMPOTENCY_KEY_REQUIRED", message: "أرسل مفتاح طلب فريداً بطول 8 إلى 128 حرفاً." });
+        return send(res, 400, { error: "IDEMPOTENCY_KEY_REQUIRED", message: "مفتاح الطلب الفريد مطلوب." });
       }
 
-      const lesson = await query(
-        "SELECT id FROM lessons WHERE id=$1 AND approved=TRUE",
-        [lessonId]
-      );
+      const lesson = await query("SELECT id FROM lessons WHERE id=$1 AND approved=TRUE", [lessonId]);
       if (!lesson.rowCount) {
-        return send(res, 404, { error: "APPROVED_LESSON_NOT_FOUND", message: "الدرس غير موجود أو لم تتم الموافقة عليه." });
+        return send(res, 404, { error: "APPROVED_LESSON_NOT_FOUND", message: "الدرس غير موجود أو غير معتمد." });
       }
 
       const inserted = await query(
@@ -97,7 +102,6 @@ const server = http.createServer(async (req, res) => {
          RETURNING id, status, stage, progress, created_at`,
         [lessonId, idempotencyKey]
       );
-
       if (inserted.rowCount) return send(res, 201, { job: inserted.rows[0], reused: false });
 
       const existing = await query(
@@ -121,19 +125,15 @@ const server = http.createServer(async (req, res) => {
 
     return send(res, 404, { error: "NOT_FOUND" });
   } catch (error) {
-    if (error.message === "REQUEST_TOO_LARGE") {
-      return send(res, 413, { error: "REQUEST_TOO_LARGE" });
-    }
-    if (error instanceof SyntaxError) {
-      return send(res, 400, { error: "INVALID_JSON" });
-    }
+    if (error.message === "REQUEST_TOO_LARGE") return send(res, 413, { error: "REQUEST_TOO_LARGE" });
+    if (error instanceof SyntaxError) return send(res, 400, { error: "INVALID_JSON" });
     console.error("Request failed:", error.message);
     return send(res, 500, { error: "INTERNAL_ERROR" });
   }
 });
 
 server.listen(port, "0.0.0.0", () => {
-  console.log(`FARIS AI STUDIO API listening on port ${port}`);
+  console.log(`FARIS AI STUDIO listening on port ${port}`);
 });
 
 async function shutdown() {
