@@ -47,6 +47,8 @@ async function makeScript(lesson, productionConfig = {}) {
   const prompt = `أنت مساعد إعداد حصص تعليمية. استخدم المصدر فقط ولا تضف حقائق غير موجودة فيه.
 أعد JSON صالحاً فقط بالشكل:
 {"learningObjectives":[],"script":"...","scenes":[{"number":1,"durationSeconds":8,"visual":"...","voiceover":"..."}]}
+أسلوب الفيديو المطلوب: ${productionConfig.style || "وثائقي سينمائي"}.
+مقدم الحصة: ${productionConfig.presenter || "الأستاذ فارس"}.
 بيانات الدرس:
 الصف: ${lesson.grade}
 الوحدة: ${lesson.unit_name || ""}
