@@ -1,33 +1,44 @@
 # FARIS AI STUDIO
 
-Arabic-first educational content production platform.
+Arabic-first educational content production backend.
 
-## Current repository status
-This repository contains the Node.js service entry point, PostgreSQL connection module, and background production worker. The worker can prepare a lesson script with Gemini. Real video rendering, durable media storage, user authentication, and device push notifications require their respective providers and configuration.
+## Render services
+Create two services from this repository:
+1. **Web Service**: Build `npm install`, Start `npm start`.
+2. **Background Worker**: Start `npm run worker`. This process must be separate from the web service so video jobs are not tied to HTTP request lifetime.
 
-## Render
-- Runtime: Node.js 20+
-- Build command: `npm install`
-- Start command: `npm start`
-- Health endpoint: `/health`
+Use Node.js 20+.
 
-## Required environment variables
-Set these in Render Dashboard → service → Environment. Never commit real values.
-
+## Environment variables
+Set the same required variables on both Render services:
 - `DATABASE_URL`: Neon pooled PostgreSQL connection string.
-- `GEMINI_API_KEY`: Gemini API key.
+- `FARIS_API_TOKEN`: long random secret used as a Bearer token for the current protected API.
+- `GEMINI_API_KEY`: required on the worker for script generation.
 
-Optional:
+Optional worker variables:
 - `GEMINI_MODEL`: defaults to `gemini-2.5-flash`.
-- `POLL_INTERVAL_MS`: worker polling interval; defaults to 5000.
-- `MAX_ATTEMPTS`: worker retry limit; defaults to 3.
-- `VIDEO_PROVIDER_URL` and `VIDEO_PROVIDER_API_KEY`: required only after choosing and implementing a compatible video provider.
+- `POLL_INTERVAL_MS`: defaults to 5000.
+- `MAX_ATTEMPTS`: defaults to 3.
+- `VIDEO_PROVIDER_URL` and `VIDEO_PROVIDER_API_KEY`: only after selecting and implementing a compatible real provider.
 
-## Database setup
-Run `migrations/001_init.sql` in the Neon SQL Editor. It creates the minimum tables currently referenced by `worker.js`. It intentionally inserts no curriculum content.
+Never commit secrets or put them in browser code.
 
-## Important limitations
-- `/health` confirms the HTTP process is responding; it does not prove database or Gemini connectivity.
-- A row in `app_notifications` is an in-app database notification, not a device push notification.
-- Do not mark video jobs completed until a real provider returns a valid video URL and the media is stored durably.
-- The current worker is an initial implementation. Test retries, stale-job recovery, and provider idempotency before production use.
+## Database
+Run `migrations/001_init.sql` in Neon SQL Editor. No curriculum records are seeded; only explicitly approved source lessons can be processed.
+
+## API
+All API routes except `GET /health` require:
+`Authorization: Bearer <FARIS_API_TOKEN>`
+
+- `GET /health`: checks HTTP and PostgreSQL availability.
+- `POST /api/jobs`: body `{"lesson_id":"UUID"}`, plus an `Idempotency-Key` header (8–128 chars).
+- `GET /api/jobs/:id`: reads the job state.
+
+The current token is a single-service credential, not a finished per-user authentication system. Do not expose it in a public web page or mobile app. A production client must use a proper user-authentication layer and server-side authorization.
+
+## Current capability limits
+- The worker can prepare scripts with Gemini.
+- Real video rendering requires a compatible provider integration.
+- Durable object storage and device push notifications are not implemented yet.
+- Database notifications are not equivalent to push notifications.
+- A successful health check proves database connectivity only, not Gemini or video-provider readiness.
