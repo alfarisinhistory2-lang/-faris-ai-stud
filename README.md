@@ -31,7 +31,7 @@ Optional:
 - `MAX_ATTEMPTS`: defaults to 3.
 - `VIDEO_PROVIDER_URL` and `VIDEO_PROVIDER_API_KEY`: only after implementing a compatible real provider.
 
-The dashboard asks for `FARIS_API_TOKEN) and keeps it in page memory only. Do not publish this token or embed it in a public mobile app. This is a temporary single-token admin gate, not per-user authentication.
+The dashboard asks for `FARIS_API_TOKEN and keeps it in page memory only. Do not publish this token or embed it in a public mobile app. This is a temporary single-token admin gate, not per-user authentication.
 
 ## Database setup
 Run `migrations/001_init.sql` in the Neon SQL Editor. No curriculum records are inserted. Only lessons that an authorized administrator has explicitly marked approved can be queued.
