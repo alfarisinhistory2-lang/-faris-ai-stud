@@ -27,18 +27,21 @@ async function readJson(req,limit=2_000_000){
   for await(const chunk of req){body+=chunk;if(body.length>limit)throw new Error("REQUEST_TOO_LARGE");}
   return body?JSON.parse(body):{};
 }
-async function gemini(prompt){
+
+async function gemini(prompt,images=[]){
   if(!process.env.GEMINI_API_KEY)throw new Error("GEMINI_API_KEY غير مضبوط في إعدادات الخادم.");
   const model=process.env.GEMINI_MODEL||"gemini-2.5-flash";
+  const parts=[{text:prompt},...images.map(d=>({inlineData:{mimeType:"image/jpeg",data:d}}))];
   const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
     method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:"application/json",temperature:0.2}})
+    body:JSON.stringify({contents:[{parts}],generationConfig:{responseMimeType:"application/json",temperature:0.2,maxOutputTokens:16000}})
   });
   const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(data.error?.message||`Gemini API error ${response.status}`);
+  if(!response.ok)throw new Error("Gemini رفض الطلب ("+response.status+"): "+(data.error?.message||"سبب غير معروف"));
   const raw=data.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("");
-  if(!raw)throw new Error("Gemini لم يرجع نتيجة قابلة للقراءة.");
-  return JSON.parse(raw);
+  if(!raw)throw new Error("Gemini لم يرجع نتيجة. السبب: "+(data.candidates?.[0]?.finishReason||data.promptFeedback?.blockReason||"غير معروف"));
+  try{return JSON.parse(raw.replace(/^```json\s*/i,"").replace(/```\s*$/,"").trim());}
+  catch{throw new Error("Gemini أرجع نتيجة غير مكتملة. قلّل عدد الصفحات أو استخدم فصلاً واحداً.");}
 }
 
 const server=http.createServer(async(req,res)=>{
@@ -52,20 +55,20 @@ const server=http.createServer(async(req,res)=>{
       return res.end(page);
     }
     if(req.method==="GET"&&url.pathname==="/health"){
-      try{await query("SELECT 1");return send(res,200,{status:"ok",service:"FARIS AI STUDIO",database:"connected",geminiConfigured:Boolean(process.env.GEMINI_API_KEY)});}
+      try{await query("SELECT 1");return send(res,200,{status:"ok",service:"FARIS AI STUDIO",database:"connected",geminiConfigured:Boolean(process.env.GEMINI_API_KEY),imageAnalysis:true});}
       catch{return send(res,503,{status:"degraded",service:"FARIS AI STUDIO",database:"unavailable"});}
     }
     if(!authorized(req))return send(res,apiToken?401:503,{error:apiToken?"UNAUTHORIZED":"SERVER_CONFIGURATION_REQUIRED",message:apiToken?"يلزم رمز وصول صحيح.":"اضبط FARIS_API_TOKEN في إعدادات الخادم."});
 
     if(req.method==="POST"&&url.pathname==="/api/books/analyze"){
-      const body=await readJson(req,1_800_000);
+      const body=await readJson(req,8_000_000);
       const filename=String(body.filename||"كتاب.pdf").slice(0,180);
       const grade=String(body.grade||"").slice(0,100);
-      const text=String(body.extracted_text||"").trim();
-      if(!text||text.length<150)return send(res,400,{error:"PDF_TEXT_REQUIRED",message:"لم يتم استخراج نص كافٍ من ملف PDF. جرّب نسخة PDF نصية وليست صوراً ممسوحة."});
-      if(text.length>1_200_000)return send(res,413,{error:"TEXT_TOO_LARGE",message:"الدرس طويل جداً؛ قسّم الكتاب إلى ملف أصغر أو درس منفصل."});
-      const prompt=`أنت محلل كتب مدرسية. حلّل النص المرفق فقط ولا تضف أي معلومة من خارج المصدر. أعد JSON صالحاً بهذا الشكل: {"book_title":"اسم الكتاب إن وجد","units":[{"unit_name":"اسم الوحدة","lessons":[{"lesson_name":"اسم الدرس كما ورد","key_points":["نقطة مهمة مقتبسة بالمعنى من المصدر"],"source_excerpt":"مقتطف داعم من النص","learning_objectives":["هدف تعليمي"]}]}],"coverage_notes":["ملاحظات عن النص الناقص أو الصفحات غير الواضحة"]}. لا تخترع وحدات أو دروساً. إذا لم تجد بنية واضحة اجعل الوحدات فارغة واشرح السبب في coverage_notes. الصف: ${grade||"غير محدد"}. اسم الملف: ${filename}. النص: ${text}`;
-      const analysis=await gemini(prompt);
+      const text=String(body.extracted_text||"").trim().slice(0,150000);
+      const images=Array.isArray(body.images)?body.images.slice(0,6).filter(x=>typeof x==="string"&&x.length>100&&x.length<1_500_000):[];
+      if(!images.length&&(!text||text.length<150))return send(res,400,{error:"PDF_TEXT_REQUIRED",message:"لم يتم استخراج نص كافٍ ولم تصل أي صور. جرّب نسخة PDF نصية أو صوّر صفحات الكتاب."});
+      const prompt=`أنت محلل كتب مدرسية. حلّل المصدر المرفق فقط ولا تضف أي معلومة من خارجه. أعد JSON صالحاً بهذا الشكل: {"book_title":"اسم الكتاب إن وجد","units":[{"unit_name":"اسم الوحدة","lessons":[{"lesson_name":"اسم الدرس كما ورد","key_points":["نقطة مهمة مقتبسة بالمعنى من المصدر"],"source_excerpt":"مقتطف داعم من النص","learning_objectives":["هدف تعليمي"]}]}],"coverage_notes":["ملاحظات عن النص الناقص أو الصفحات غير الواضحة"]}. لا تخترع وحدات أو دروساً. إذا لم تجد بنية واضحة اجعل الوحدات فارغة واشرح السبب في coverage_notes. الصف: ${grade||"غير محدد"}. اسم الملف: ${filename}. النص: ${text||"(المصدر صور مرفقة لصفحات الكتاب، اقرأها بدقة)"}`;
+      const analysis=await gemini(prompt,images);
       const saved=await query(`INSERT INTO book_analyses(filename,grade,extracted_text,analysis_json,status) VALUES($1,$2,$3,$4,'pending') RETURNING id,filename,grade,status,created_at`,[filename,grade,text,JSON.stringify(analysis)]);
       return send(res,201,{analysis_id:saved.rows[0].id,book:saved.rows[0],analysis});
     }
@@ -127,7 +130,7 @@ const server=http.createServer(async(req,res)=>{
     }
     return send(res,404,{error:"NOT_FOUND"});
   }catch(error){
-    if(error.message==="REQUEST_TOO_LARGE")return send(res,413,{error:"REQUEST_TOO_LARGE"});
+    if(error.message==="REQUEST_TOO_LARGE")return send(res,413,{error:"REQUEST_TOO_LARGE",message:"حجم الطلب كبير. قلّل عدد الصور أو التقطها بدقة أقل."});
     if(error instanceof SyntaxError)return send(res,400,{error:"INVALID_JSON"});
     console.error("Request failed:",error.message);
     return send(res,500,{error:"INTERNAL_ERROR",message:error.message});
