@@ -31,6 +31,13 @@ input,select{width:100%;padding:14px;border-radius:12px;border:1px solid #5a4630
 <label>الوحدة</label><input id="unit"><label>الدرس</label><input id="lesson">
 <label>مدة الفيديو</label><select id="duration"><option value="short">قصيرة (دقيقة واحدة)</option><option value="medium">متوسطة (3 دقائق)</option><option value="long">طويلة (5 دقائق)</option></select>
 <label>صوت التعليق</label><select id="voice"><option>الأستاذ فارس</option><option>معلّقة نسائية</option><option>راوٍ وثائقي</option></select>
+<label>أسلوب الفيديو</label><select id="style"><option value="cartoon">كرتوني تعليمي</option><option value="documentary">وثائقي سينمائي</option><option value="story">قصة تعليمية</option><option value="investigation">تحقيق وتشويق</option><option value="visual">شرح بصري</option><option value="classroom">حصة صفية</option></select>
+<label>نسبة الشاشة</label><select id="aspect"><option value="9:16">عمودي (موبايل / تيك توك)</option><option value="16:9">أفقي (يوتيوب)</option></select>
+<label>لغة التعليق</label><select id="language"><option value="fusha">عربية فصحى مبسطة</option><option value="sudani">لهجة سودانية</option><option value="english">English</option></select>
+<label>سرعة التعليق</label><select id="speed"><option value="slow">بطيئة</option><option value="normal" selected>عادية</option><option value="fast">سريعة</option></select>
+<label>الموسيقى</label><select id="music"><option value="calm">هادئة</option><option value="epic">ملحمية تاريخية</option><option value="playful">مرحة للأطفال</option><option value="none">بدون موسيقى</option></select>
+<label>الشخصيات</label><input id="characters" placeholder="مثال: الأستاذ فارس، رودينا، مكة">
+<label>صورة الأستاذ فارس (معاينة)</label><input type="file" id="portrait" accept="image/*"><img id="pv" style="display:none;width:90px;height:90px;object-fit:cover;border-radius:14px;margin-top:10px">
 <button class="btn" id="analyze">تحليل الدرس وإعداد السيناريو</button><div class="msg" id="aMsg"></div></div>
 <div id="result"></div></section>
 
@@ -74,7 +81,7 @@ $("save").onclick=async()=>{store.set("fbase",baseUrl());store.set("ftoken",$("t
   try{await api("/api/projects");show("sMsg","ok","تم الاتصال وصحّ الرمز.");loadProjects();}catch(e){show("sMsg","err",e.message);}};
 function scriptHtml(p){const s=p.script_json||{};return '<div class="proj"><b>'+esc(s.title||p.lesson_name)+'</b><small>'+esc(p.unit_name)+' · '+esc(p.lesson_name)+' · '+esc(p.voice)+'</small>'
  +(s.summary?'<div class="scene">'+esc(s.summary)+'</div>':"")
- +(s.scenes||[]).map(x=>'<div class="scene"><i>مشهد '+esc(x.scene)+' ('+esc(x.seconds)+'ث)</i><br>🎬 '+esc(x.visual)+'<br>🎙 '+esc(x.narration)+'</div>').join("")
+ +(s.scenes||[]).map(x=>'<div class="scene"><i>مشهد '+esc(x.scene)+' ('+esc(x.seconds)+'ث)</i><br>🎬 '+esc(x.visual)+'<br>🎙 '+esc(x.narration)+(x.music?'<br>🎵 '+esc(x.music):"")+'</div>').join("")
  +(s.coverage_notes&&s.coverage_notes.length?'<div class="scene">ملاحظات: '+esc(s.coverage_notes.join(" • "))+'</div>':"")
  +'<button class="btn2" data-copy="'+esc(p.id)+'">نسخ السيناريو</button> <button class="btn2" data-del="'+esc(p.id)+'">حذف</button></div>';}
 let cache=[];
@@ -99,8 +106,9 @@ $("analyze").onclick=async()=>{
   try{let text=await extract(f);
     const i=text.indexOf(lesson);if(i>-1&&text.length>110000)text=text.slice(Math.max(0,i-5000),i+105000);
     show("aMsg","ok","جارٍ إعداد السيناريو بواسطة Gemini (قد يستغرق نحو دقيقة)...");
-    const d=await api("/api/analyze",{method:"POST",body:JSON.stringify({grade:$("grade").value,unit:$("unit").value,lesson,duration:$("duration").value,voice:$("voice").value,extracted_text:text})});
+    const d=await api("/api/analyze",{method:"POST",body:JSON.stringify({grade:$("grade").value,unit:$("unit").value,lesson,duration:$("duration").value,voice:$("voice").value,style:$("style").value,aspect:$("aspect").value,language:$("language").value,speed:$("speed").value,music:$("music").value,characters:$("characters").value,extracted_text:text})});
     show("aMsg","ok","تم إعداد السيناريو وحُفظ.");$("result").innerHTML='<div class="card">'+scriptHtml(d.project)+'</div>';cache.unshift(d.project);
   }catch(e){show("aMsg","err","خطأ أثناء التحليل: "+e.message);}finally{$("analyze").disabled=false;}};
+$("portrait").onchange=e=>{const f=e.target.files[0];if(f){$("pv").src=URL.createObjectURL(f);$("pv").style.display="block";}};
 health();if($("token").value)loadProjects();
 </script></body></html>
