@@ -29,6 +29,9 @@ async function readJson(req,limit=2_000_000){
   return body?JSON.parse(body):{};
 }
 
+let projectsReady=false;
+async function ensureProjects(){if(projectsReady)return;await query("CREATE TABLE IF NOT EXISTS studio_projects(id UUID PRIMARY KEY DEFAULT gen_random_uuid(),grade TEXT,unit_name TEXT,lesson_name TEXT NOT NULL,duration TEXT,voice TEXT,script_json JSONB,created_at TIMESTAMPTZ DEFAULT NOW())");projectsReady=true;}
+
 async function gemini(prompt,images=[]){
   if(!process.env.GEMINI_API_KEY)throw new Error("GEMINI_API_KEY غير مضبوط في إعدادات الخادم.");
   const candidates=[...new Set([process.env.GEMINI_MODEL,"gemini-3.8-flash","gemini-flash-latest","gemini-2.5-flash"].filter(Boolean))];
@@ -136,6 +139,31 @@ const server=http.createServer(async(req,res)=>{
       const result=await query("SELECT id,lesson_id,status,stage,progress,script_json,video_url,error_message,created_at,updated_at,completed_at FROM production_jobs WHERE id=$1",[jobMatch[1]]);
       if(!result.rowCount)return send(res,404,{error:"JOB_NOT_FOUND"});
       return send(res,200,{job:result.rows[0]});
+    }
+    if(req.method==="GET"&&url.pathname==="/api/projects"){
+      await ensureProjects();
+      const r=await query("SELECT id,grade,unit_name,lesson_name,duration,voice,script_json,created_at FROM studio_projects ORDER BY created_at DESC LIMIT 100");
+      return send(res,200,{projects:r.rows});
+    }
+    const projMatch=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})$/i);
+    if(req.method==="DELETE"&&projMatch){
+      await ensureProjects();
+      await query("DELETE FROM studio_projects WHERE id=$1",[projMatch[1]]);
+      return send(res,200,{deleted:true});
+    }
+    if(req.method==="POST"&&url.pathname==="/api/analyze"){
+      await ensureProjects();
+      const b=await readJson(req,8_000_000);
+      const lesson=String(b.lesson||"").trim().slice(0,250),unit=String(b.unit||"").trim().slice(0,250),grade=String(b.grade||"").slice(0,100);
+      const text=String(b.extracted_text||"").trim().slice(0,120000);
+      const dur={short:"دقيقة واحدة (نحو 150 كلمة تعليق)",medium:"3 دقائق (نحو 450 كلمة)",long:"5 دقائق (نحو 750 كلمة)"}[b.duration]||"دقيقة واحدة";
+      const voice=String(b.voice||"الأستاذ فارس").slice(0,80);
+      if(!lesson)return send(res,400,{error:"LESSON_REQUIRED",message:"اكتب اسم الدرس."});
+      if(text.length<150)return send(res,400,{error:"TEXT_REQUIRED",message:"لم يصل نص كافٍ من الكتاب. اختر PDF نصياً."});
+      const prompt=`أنت كاتب سيناريو فيديو تعليمي كرتوني للتاريخ. اعتمد على نص الكتاب فقط ولا تضف معلومات من خارجه. الدرس: "${lesson}" من الوحدة "${unit}". الصف: ${grade||"غير محدد"}. المدة: ${dur}. المعلّق: ${voice}. أعد JSON صالحاً بالشكل: {"title":"","summary":"","scenes":[{"scene":1,"visual":"وصف المشهد الكرتوني","narration":"نص التعليق بالعربية الفصحى المبسطة","seconds":10}],"quiz":[{"q":"","a":""}],"coverage_notes":["ملاحظة إن كان الدرس غير واضح في النص"]}. النص: ${text}`;
+      const script=await gemini(prompt);
+      const r=await query("INSERT INTO studio_projects(grade,unit_name,lesson_name,duration,voice,script_json) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,grade,unit_name,lesson_name,duration,voice,script_json,created_at",[grade,unit,lesson,String(b.duration||"short"),voice,JSON.stringify(script)]);
+      return send(res,201,{project:r.rows[0]});
     }
     return send(res,404,{error:"NOT_FOUND"});
   }catch(error){
