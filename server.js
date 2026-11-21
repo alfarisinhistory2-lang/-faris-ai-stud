@@ -19,7 +19,7 @@ app.use(['/api', '/health'], (req, res, next) => {
   next();
 });
 
-// حد بسيط للكتابة: 60 طلباً في الدقيقة لكل عنوان، حمايةً من الاستهلاك الزائد
+// حد بسيط للكتابة: 60 طلباً في الدقيقة لكل عنوان
 const hits = new Map();
 setInterval(() => hits.clear(), 3600000);
 app.use('/api', (req, res, next) => {
@@ -68,4 +68,5 @@ app.post('/api/projects', async (req, res) => {
 });
 
 db.migrate().then(() => console.log('migrations ok')).catch(e => console.error('migrate:', e.message));
+
 app.listen(PORT, () => console.log('Faris Studio on ' + PORT));
