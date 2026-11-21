@@ -17,9 +17,10 @@ function send(res,status,payload){
 function cors(req,res){
   const origin=req.headers.origin||"*";
   res.setHeader("Access-Control-Allow-Origin",allowedOrigin==="*"?origin:allowedOrigin);
-  res.setHeader("Vary","Origin");
-  res.setHeader("Access-Control-Allow-Headers","Authorization,Content-Type,Idempotency-Key");
-  res.setHeader("Access-Control-Allow-Methods","GET,POST,OPTIONS");
+  res.setHeader("Vary","Origin, Access-Control-Request-Headers");
+  res.setHeader("Access-Control-Allow-Headers",req.headers["access-control-request-headers"]||"Authorization,Content-Type,Idempotency-Key");
+  res.setHeader("Access-Control-Allow-Methods","GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Max-Age","86400");
 }
 function authorized(req){return Boolean(apiToken)&&req.headers.authorization===`Bearer ${apiToken}`;}
 async function readJson(req,limit=2_000_000){
@@ -30,14 +31,22 @@ async function readJson(req,limit=2_000_000){
 
 async function gemini(prompt,images=[]){
   if(!process.env.GEMINI_API_KEY)throw new Error("GEMINI_API_KEY غير مضبوط في إعدادات الخادم.");
-  const model=process.env.GEMINI_MODEL||"gemini-2.5-flash";
+  const candidates=[...new Set([process.env.GEMINI_MODEL,"gemini-3.8-flash","gemini-flash-latest","gemini-2.5-flash"].filter(Boolean))];
   const parts=[{text:prompt},...images.map(d=>({inlineData:{mimeType:"image/jpeg",data:d}}))];
-  const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({contents:[{parts}],generationConfig:{responseMimeType:"application/json",temperature:0.2,maxOutputTokens:16000}})
-  });
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error("Gemini رفض الطلب ("+response.status+"): "+(data.error?.message||"سبب غير معروف"));
+  let data={},lastError="";
+  for(const model of candidates){
+    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts}],generationConfig:{responseMimeType:"application/json",temperature:0.2,maxOutputTokens:16000}})
+    });
+    data=await response.json().catch(()=>({}));
+    if(response.ok){console.log("Gemini model used:",model);break;}
+    lastError="Gemini رفض الطلب ("+response.status+") للنموذج "+model+": "+(data.error?.message||"سبب غير معروف");
+    console.error(lastError);
+    data=null;
+    if(response.status!==404)throw new Error(lastError);
+  }
+  if(!data)throw new Error(lastError+" — جرّب ضبط GEMINI_MODEL في Render على اسم نموذج متاح لمفتاحك.");
   const raw=data.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("");
   if(!raw)throw new Error("Gemini لم يرجع نتيجة. السبب: "+(data.candidates?.[0]?.finishReason||data.promptFeedback?.blockReason||"غير معروف"));
   try{return JSON.parse(raw.replace(/^```json\s*/i,"").replace(/```\s*$/,"").trim());}
