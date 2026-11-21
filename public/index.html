@@ -1,93 +1,106 @@
 <!doctype html>
 <html lang="ar" dir="rtl"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#10091d"><title>FARIS AI STUDIO</title>
+<meta name="theme-color" content="#ffa726"><title>FARIS AI STUDIO</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
-:root{--bg:#10091d;--panel:#1b1329;--panel2:#261b37;--gold:#dfb85c;--gold2:#f4dda0;--muted:#b8aec8;--line:#3b2d50;--white:#fff;--green:#8dd5a3}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 82% -8%,#4a3065 0,transparent 42%),var(--bg);color:var(--white);font-family:Tahoma,Arial,sans-serif;min-height:100vh}
-button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1250px;margin:auto;padding:20px}
-header{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:12px 0 22px}
-.brand{display:flex;align-items:center;gap:12px}.mark{width:52px;height:52px;border-radius:17px;background:linear-gradient(145deg,#f6dfa1,#b77e28);display:grid;place-items:center;color:#281839;font-size:29px;font-weight:900;box-shadow:0 8px 30px #d9ae5540}
-.brand b{font-size:17px;letter-spacing:.5px}.brand small{display:block;color:var(--gold);font-size:10px;margin-top:5px}
-.pill{border:1px solid var(--line);padding:9px 13px;border-radius:40px;color:var(--muted);font-size:11px}
-.hero{border:1px solid #604a78;border-radius:25px;padding:30px;background:linear-gradient(115deg,#38244f,#21172f 72%);position:relative;overflow:hidden}
-.hero:after{content:"";position:absolute;left:-65px;top:-100px;width:240px;height:240px;border:1px solid #d9ae5540;border-radius:50%;box-shadow:0 0 0 22px #d9ae5508,0 0 0 48px #d9ae5508}
-.eyebrow{color:var(--gold2);font-size:11px}.hero h1{font-size:clamp(25px,4vw,38px);margin:13px 0}.hero p{max-width:680px;color:#d4c9df;line-height:2;font-size:13px;margin:0}
-.layout{display:grid;grid-template-columns:230px 1fr;gap:16px;margin-top:17px}.side,.panel{background:var(--panel);border:1px solid var(--line);border-radius:19px;padding:17px;min-width:0}
-.side button{display:block;width:100%;text-align:right;background:transparent;color:#cfc4da;border:0;padding:13px;border-radius:11px;margin:4px 0;font-size:12px}
-.side button.active,.side button:hover{background:#352645;color:var(--gold2);border-right:3px solid var(--gold)}
-.main{min-width:0}.page{display:none}.page.active{display:block}
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:15px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:15px}.metric strong{display:block;color:var(--gold2);font-size:25px;margin-bottom:5px}.metric span{font-size:10px;color:var(--muted)}
-h2{font-size:17px;margin:0 0 15px}h3{font-size:14px;margin:0 0 12px}.muted{color:var(--muted);font-size:11px;line-height:1.9}
-.field{margin:13px 0}.field label{display:block;font-size:11px;color:#ddd3e8;margin-bottom:7px}.field input,.field select{width:100%;background:#100a19;border:1px solid #4b3a61;color:white;padding:13px;border-radius:11px;outline:none}.field input:focus,.field select:focus{border-color:var(--gold)}
-.btn{border:0;border-radius:11px;padding:12px 17px;background:linear-gradient(120deg,#f3dc9c,#bd8a34);color:#251633;font-weight:bold;font-size:11px}
-.btn2{background:#30223f;color:#eee;border:1px solid #58436f;border-radius:11px;padding:11px 15px;font-size:11px}
-.btn:disabled{opacity:.4;cursor:not-allowed}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
-.steps{display:flex;gap:7px;overflow:auto;margin-bottom:17px}.step{white-space:nowrap;background:#251b35;color:var(--muted);border:1px solid var(--line);padding:10px 13px;border-radius:30px;font-size:10px}.step.active{color:var(--gold2);border-color:var(--gold);background:#3b2b43}.step.done{color:var(--green)}
-.stage{display:none}.stage.active{display:block}.drop{border:1px dashed #8c7045;background:#251c32;border-radius:16px;padding:23px;text-align:center}.drop strong{font-size:12px}.drop p{color:var(--muted);font-size:10px;line-height:1.8}.drop input{font-size:10px;max-width:100%}
-.notice{padding:12px 14px;background:#342819;border:1px solid #765b31;color:#f2dca8;border-radius:12px;font-size:10px;line-height:1.9;margin:13px 0}.notice.info{background:#2a2038;border-color:#58466c;color:#d8cce6}
-.units{display:grid;gap:12px}.unit{border:1px solid var(--line);background:#231a32;border-radius:14px;padding:13px}.unit h4{font-size:12px;margin:0 0 9px;color:var(--gold2)}.lesson-choice{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-top:1px solid #3c2e4e;font-size:11px}.lesson-choice input{accent-color:#d9ae55;margin-top:2px}.lesson-choice small{display:block;color:var(--muted);font-size:10px;line-height:1.7;margin-top:4px}
-.styles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.style{background:#271d38;color:#fff;border:1px solid var(--line);border-radius:13px;padding:14px;text-align:right}.style.selected{border-color:var(--gold);background:#3a2945}.style i{display:block;font-style:normal;font-size:23px;margin-bottom:8px}.style b{font-size:10px}.style small{display:block;color:var(--muted);font-size:9px;margin-top:5px}
-.preview{width:100px;height:100px;object-fit:cover;border-radius:14px;display:none;margin:12px auto}.status{font-size:11px;color:var(--muted);margin-top:12px;min-height:22px;line-height:1.8}.job{padding:13px;background:var(--panel2);border:1px solid var(--line);border-radius:13px;margin:9px 0}.job small{color:var(--muted);font-size:10px}.bar{height:5px;background:#10091d;border-radius:9px;margin:10px 0;overflow:hidden}.bar i{display:block;height:100%;background:var(--gold)}.empty{padding:20px;text-align:center;border:1px dashed var(--line);border-radius:13px;color:var(--muted);font-size:11px}
-@media(max-width:800px){.layout{grid-template-columns:1fr}.side{display:flex;gap:5px;overflow:auto;padding:8px}.side button{white-space:nowrap;width:auto;margin:0}.side button:after{content:""}.metrics{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:560px){.shell{padding:12px}.hero{padding:21px}.styles{grid-template-columns:repeat(2,1fr)}.metric{padding:11px}.metric strong{font-size:21px}header{align-items:flex-start}.brand b{font-size:14px}}
-</style></head>
-<body><div class="shell">
-<header><div class="brand"><div class="mark">ف</div><div><b>FARIS AI STUDIO</b><small>SMART EDUCATIONAL PRODUCTION</small></div></div><span class="pill" id="health">بانتظار الاتصال</span></header>
-<section class="hero"><span class="eyebrow">✦ من الكتاب المدرسي إلى الحصة المصوّرة</span><h1>كل درس يستحق إنتاجاً استثنائياً.</h1><p>ارفع ملف الكتاب، دع Gemini يحلل محتواه، اختر الدرس وأسلوب الفيديو، ثم تابع مراحل إعداد السيناريو والإنتاج من لوحة واحدة.</p></section>
-<div class="layout">
-<nav class="side"><button class="active" data-page="create">✦ إنشاء حصة</button><button data-page="tasks">◷ مهام الإنتاج</button><button data-page="settings">⚙ الاتصال</button></nav>
-<main class="main">
-<section class="page active" id="create">
-<div class="metrics"><div class="metric"><strong id="lessonCount">—</strong><span>دروس معتمدة</span></div><div class="metric"><strong id="jobCount">—</strong><span>مهام الإنتاج</span></div><div class="metric"><strong id="doneCount">—</strong><span>فيديوهات مكتملة</span></div></div>
-<div class="panel"><h2>إنشاء حصة تعليمية جديدة</h2>
-<div class="steps"><span class="step active" data-step="0">01 الكتاب</span><span class="step" data-step="1">02 الدرس</span><span class="step" data-step="2">03 الأسلوب</span><span class="step" data-step="3">04 صورة الأستاذ</span><span class="step" data-step="4">05 الإنتاج</span></div>
-<div class="stage active" data-stage="0"><h3>ارفع الكتاب المدرسي PDF</h3><p class="muted">سيتم استخراج النص من الملف داخل المتصفح ثم إرساله إلى الخادم لتحليله بواسطة Gemini. لا تُرفع صورة الملف نفسها في هذه النسخة.</p>
-<div class="field"><label>الصف الدراسي</label><input id="grade" placeholder="مثال: الصف الثالث الثانوي"></div>
-<div class="drop"><div style="font-size:29px">📘</div><strong>اختر ملف الكتاب</strong><p>يفضل ملف PDF نصي قابل للتحديد والنسخ.</p><input type="file" id="pdf" accept="application/pdf,.pdf"><div class="status" id="pdfStatus">لم يتم اختيار ملف.</div></div>
-<div class="actions"><button class="btn" id="analyze">تحليل الكتاب بواسطة Gemini</button></div>
-<div class="notice">تُحفظ نتيجة التحليل في قاعدة البيانات كمسودة غير معتمدة. لن يُضاف أي درس للمنهج قبل اختيارك واعتماده.</div></div>
-<div class="stage" data-stage="1"><h3>اختر الوحدة والدرس المراد إنتاجه</h3><p class="muted">هذه النتائج مستخرجة من الكتاب بواسطة Gemini. راجعها وحدد الدرس المطلوب.</p><div id="analysisResults" class="units"><div class="empty">حلّل الكتاب أولاً.</div></div><div class="actions"><button class="btn" id="approve">اعتماد الدرس المحدد</button></div><div class="status" id="approvalStatus"></div></div>
-<div class="stage" data-stage="2"><h3>اختر الأسلوب الإخراجي</h3><div class="styles">
-<button class="style selected" data-style="documentary"><i>🎞️</i><b>وثائقي سينمائي</b><small>سرد ومشاهد واقعية</small></button>
-<button class="style" data-style="cartoon"><i>🎨</i><b>كرتوني تعليمي</b><small>شخصيات وحوار</small></button>
-<button class="style" data-style="investigation"><i>🕵️</i><b>تحقيق وتشويق</b><small>لغز وأدلة واستنتاج</small></button>
-<button class="style" data-style="visual"><i>📊</i><b>شرح بصري</b><small>خرائط ورسوم توضيحية</small></button>
-<button class="style" data-style="classroom"><i>🏫</i><b>حصة صفية</b><small>شرح مباشر</small></button>
-<button class="style" data-style="story"><i>📖</i><b>قصة تعليمية</b><small>سرد قصصي</small></button>
-</div></div>
-<div class="stage" data-stage="3"><h3>صورة الأستاذ فارس</h3><p class="muted">اختر الصورة الشخصية المعتمدة لتكون مرجعاً بصرياً للمقدم.</p><div class="drop"><div style="font-size:27px">🧑‍🏫</div><strong>اختر الصورة</strong><p>صورة واضحة بإضاءة جيدة.</p><input type="file" id="portrait" accept="image/png,image/jpeg,image/webp"><img id="portraitPreview" class="preview"><div class="status" id="portraitStatus">لم يتم اختيار صورة.</div></div><div class="notice info">الصورة تُعرض للمعاينة في هذه النسخة، ولم يتم بعد ربط تخزين الصور أو إرسالها إلى مزود الفيديو.</div></div>
-<div class="stage" data-stage="4"><h3>تأكيد إعدادات الإنتاج</h3><div id="summary" class="job">لم تكتمل الإعدادات بعد.</div><div class="notice">سيُنشئ الخادم مهمة إعداد السيناريو عبر العامل الخلفي. لا يبدأ توليد ملف الفيديو النهائي حتى إضافة مزود فيديو متوافق وتخزين للمخرجات.</div><button class="btn" id="startJob">إرسال إلى فريق الإنتاج</button><div class="status" id="finalStatus"></div></div>
-<div class="actions"><button class="btn2" id="back" disabled>السابق</button><button class="btn" id="next">التالي ←</button></div>
-</div></section>
-<section class="page" id="tasks"><div class="panel"><h2>مهام الإنتاج</h2><div class="actions"><button class="btn2" id="refresh">تحديث المهام</button></div><div id="jobs" style="margin-top:14px"><div class="empty">اتصل بالخادم لعرض المهام.</div></div></div></section>
-<section class="page" id="settings"><div class="panel"><h2>الاتصال الآمن بالخادم</h2><div class="field"><label>رابط API</label><input id="apiBase" value="https://faris-ai-stud.onrender.com" dir="ltr"></div><div class="field"><label>رمز الوصول FARIS_API_TOKEN</label><input id="token" type="password" autocomplete="off" placeholder="أدخل الرمز"></div><div class="actions"><button class="btn" id="connect">اختبار الاتصال</button><button class="btn2" id="forget">مسح الرمز</button></div><div class="status" id="connectionStatus"></div><div class="notice">لا تضع مفاتيح Gemini أو قاعدة البيانات هنا. تُحفظ هذه المفاتيح في إعدادات الخادم فقط. رمز الوصول لا يُحفظ بعد إغلاق الصفحة.</div></div></section>
-</main></div></div>
+*{box-sizing:border-box}body{margin:0;background:#0a0612;color:#fff;font-family:Tahoma,Arial,sans-serif}
+header{background:#ffa726;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;color:#2a1a05}
+header b{font-size:15px}header button{background:none;border:0;font-size:24px;cursor:pointer}
+nav{display:flex;gap:8px;padding:12px 16px}nav button{flex:1;padding:11px;border-radius:12px;border:1px solid #4b3a61;background:#1b1329;color:#cfc4da;font:inherit;font-size:13px}
+nav button.on{background:#352645;color:#f4c14e;border-color:#f4c14e}
+.page{display:none;padding:0 16px 40px}.page.on{display:block}
+.card{background:#1d1033;border:1px solid #4a3a2c;border-radius:18px;padding:18px;margin-bottom:16px}
+h2{font-size:16px;color:#f4c14e;margin:0 0 14px}label{display:block;font-size:13px;margin:14px 0 7px;color:#d8cce6}
+input,select{width:100%;padding:14px;border-radius:12px;border:1px solid #5a4630;background:#120a1d;color:#fff;font:inherit;font-size:14px}
+.btn{width:100%;margin-top:16px;padding:14px;border:0;border-radius:12px;background:linear-gradient(120deg,#ffd75e,#f5b52c);color:#2a1a05;font:inherit;font-weight:bold;font-size:15px}
+.btn2{padding:11px 16px;border-radius:12px;border:1px solid #5a4630;background:#120a1d;color:#f4c14e;font:inherit;font-size:13px}
+.btn:disabled{opacity:.5}.row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;font-size:14px}
+.badge{padding:5px 14px;border-radius:20px;font-size:12px;border:1px solid #3a7a55;background:#1b3a2e;color:#8dd5a3}.badge.bad{border-color:#8a3a4a;background:#3a1626;color:#f2a0b0}
+.msg{margin-top:14px;padding:13px;border-radius:12px;font-size:13px;line-height:1.9;display:none}.msg.err{display:block;background:#4a1235;border:1px solid #a04060;color:#f2b3c0}.msg.ok{display:block;background:#12342a;border:1px solid #3a7a55;color:#b6ecc8}
+.file{margin-top:8px;padding:12px;border:1px dashed #8c7045;border-radius:12px;font-size:12px;color:#f4dda0;background:#2a1d2e}
+.proj{border-top:1px solid #4a3a2c;padding:13px 0}.proj b{font-size:14px}.proj small{color:#b8aec8;display:block;margin:4px 0 8px}
+.scene{background:#120a1d;border-radius:10px;padding:10px;margin:8px 0;font-size:12px;line-height:1.9}.scene i{color:#f4c14e;font-style:normal}
+</style></head><body>
+<header><button id="menu">☰</button><b>FARIS AI STUDIO</b><button id="share">⤴</button></header>
+<nav><button class="on" data-p="create">إنشاء سيناريو</button><button data-p="settings">الإعدادات والمشاريع</button></nav>
+
+<section class="page on" id="create"><div class="card"><h2>تحليل درس وإعداد السيناريو</h2>
+<label>الصف</label><input id="grade" placeholder="مثال: الصف الثالث الثانوي">
+<label>ملف الكتاب (PDF)</label><input type="file" id="pdf" accept="application/pdf,.pdf"><div class="file" id="fileInfo">لم يتم اختيار ملف.</div>
+<label>الوحدة</label><input id="unit"><label>الدرس</label><input id="lesson">
+<label>مدة الفيديو</label><select id="duration"><option value="short">قصيرة (دقيقة واحدة)</option><option value="medium">متوسطة (3 دقائق)</option><option value="long">طويلة (5 دقائق)</option></select>
+<label>صوت التعليق</label><select id="voice"><option>الأستاذ فارس</option><option>معلّقة نسائية</option><option>راوٍ وثائقي</option></select>
+<button class="btn" id="analyze">تحليل الدرس وإعداد السيناريو</button><div class="msg" id="aMsg"></div></div>
+<div id="result"></div></section>
+
+<section class="page" id="settings">
+<div class="card"><h2>الاتصال</h2><label>رابط الخادم</label><input id="base" dir="ltr" value="https://faris-ai-stud.onrender.com">
+<label>رمز الوصول</label><input id="token" type="password" autocomplete="off" dir="ltr">
+<button class="btn" id="save">حفظ وفحص الاتصال</button><div class="msg" id="sMsg"></div></div>
+<div class="card"><h2>حالة الاتصال السحابي</h2>
+<div class="row"><span>الخادم</span><span class="badge bad" id="bSrv">—</span></div>
+<div class="row"><span>قاعدة Neon</span><span class="badge bad" id="bDb">—</span></div>
+<div class="row"><span>محرك Gemini</span><span class="badge bad" id="bAi">—</span></div></div>
+<div class="card"><h2>المشاريع المحفوظة</h2><button class="btn2" id="sync">مزامنة من الخادم</button><div class="msg" id="pMsg"></div><div id="projects"></div></div>
+</section>
+
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 const $=id=>document.getElementById(id);
-let base="https://faris-ai-stud.onrender.com",token="",analysisId=null,analysis=null,selected=null,approvedLesson=null,step=0,style="documentary",portraitName="";
-const styleLabels={documentary:"وثائقي سينمائي",cartoon:"كرتوني تعليمي",investigation:"تحقيق وتشويق",visual:"شرح بصري",classroom:"حصة صفية",story:"قصة تعليمية"};
-function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-function page(p){document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id===p));document.querySelectorAll("[data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===p));}
-document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>page(b.dataset.page));
-async function api(path,options={}){const r=await fetch(base.replace(/\/$/,"")+path,{...options,headers:{Authorization:"Bearer "+token,...(options.body?{"Content-Type":"application/json"}:{}),...(options.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||d.error||"فشل الطلب");return d;}
-async function connect(){base=$("apiBase").value.trim().replace(/\/$/,"");token=$("token").value.trim();try{const h=await fetch(base+"/health");const d=await h.json();if(d.database!=="connected")throw Error("قاعدة البيانات غير متصلة");await api("/api/lessons");$("health").textContent="الخادم متصل";$("connectionStatus").textContent="تم الاتصال بالخادم وقاعدة البيانات.";await loadJobs();}catch(e){token="";$("health").textContent="غير متصل";$("connectionStatus").textContent="تعذر الاتصال: "+e.message;}}
-$("connect").onclick=connect;$("forget").onclick=()=>{token="";$("token").value="";$("connectionStatus").textContent="تم مسح رمز الوصول من الذاكرة."};
-async function extractPDF(file){const data=await file.arrayBuffer();const pdf=await pdfjsLib.getDocument({data}).promise;let text="";for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p);const content=await page.getTextContent();text+=content.items.map(x=>x.str).join(" ")+"\n";if(text.length>1200000)break;}return {text,pages:pdf.numPages};}
-$("analyze").onclick=async()=>{const f=$("pdf").files[0];if(!f){$("pdfStatus").textContent="اختر ملف PDF أولاً.";return;}if(!token){$("pdfStatus").textContent="اتصل بالخادم أولاً من الإعدادات.";return;}$("analyze").disabled=true;$("pdfStatus").textContent="جارٍ استخراج صفحات الكتاب...";try{const extracted=await extractPDF(f);if(extracted.text.trim().length<150)throw Error("لم يتم العثور على نص كافٍ. الملف قد يكون صوراً ممسوحة.");$("pdfStatus").textContent="تم استخراج النص. جارٍ تحليل "+extracted.pages+" صفحة بواسطة Gemini...";const result=await api("/api/books/analyze",{method:"POST",body:JSON.stringify({filename:f.name,grade:$("grade").value,extracted_text:extracted.text})});analysisId=result.analysis_id;analysis=result.analysis;renderAnalysis();$("pdfStatus").textContent="اكتمل التحليل وحُفظ في قاعدة البيانات كمسودة للمراجعة.";goStep(1);}catch(e){$("pdfStatus").textContent="تعذر التحليل: "+e.message;}finally{$("analyze").disabled=false;}};
-function renderAnalysis(){const units=analysis?.units||[];$("analysisResults").innerHTML=units.length?units.map((u,ui)=>'<div class="unit"><h4>'+esc(u.unit_name)+'</h4>'+(u.lessons||[]).map((l,li)=>'<label class="lesson-choice"><input type="radio" name="lessonChoice" data-ui="'+ui+'" data-li="'+li+'"><span><b>'+esc(l.lesson_name)+'</b><small>'+esc((l.key_points||[]).slice(0,3).join(" • "))+'</small></span></label>').join("")+'</div>').join(""):'<div class="empty">لم يتمكن Gemini من تحديد وحدات ودروس واضحة. راجع جودة ملف PDF.</div>';}
-$("analysisResults").addEventListener("change",e=>{const t=e.target;if(t.name==="lessonChoice"){const u=analysis.units[Number(t.dataset.ui)],l=u.lessons[Number(t.dataset.li)];selected={unit_name:u.unit_name,lesson_name:l.lesson_name,source_text:[l.source_excerpt||"",...(l.key_points||[]),...(l.learning_objectives||[])].join("\n")};}});
-$("approve").onclick=async()=>{if(!selected||!analysisId){$("approvalStatus").textContent="حدد درساً أولاً.";return;}try{const r=await api("/api/books/"+analysisId+"/approve",{method:"POST",body:JSON.stringify({grade:$("grade").value,lessons:[selected]})});approvedLesson=r.lessons[0];$("approvalStatus").textContent="تم اعتماد الدرس وحفظه في قاعدة البيانات.";goStep(2);refreshMetrics();}catch(e){$("approvalStatus").textContent="تعذر الاعتماد: "+e.message;}};
-document.querySelectorAll("[data-style]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-style]").forEach(x=>x.classList.remove("selected"));b.classList.add("selected");style=b.dataset.style;});
-$("portrait").onchange=e=>{const f=e.target.files[0];if(!f)return;portraitName=f.name;$("portraitPreview").src=URL.createObjectURL(f);$("portraitPreview").style.display="block";$("portraitStatus").textContent=f.name+" · معاينة محلية";};
-function goStep(n){step=Math.max(0,Math.min(4,n));document.querySelectorAll("[data-stage]").forEach(x=>x.classList.toggle("active",Number(x.dataset.stage)===step));document.querySelectorAll("[data-step]").forEach(x=>{const i=Number(x.dataset.step);x.classList.toggle("active",i===step);x.classList.toggle("done",i<step);});$("back").disabled=step===0;$("next").style.display=step===4?"none":"inline-block";if(step===4){$("summary").innerHTML="<b>الدرس:</b> "+esc(approvedLesson?.lesson_name)+"<br><b>الوحدة:</b> "+esc(approvedLesson?.unit_name)+"<br><b>الأسلوب:</b> "+esc(styleLabels[style])+"<br><b>الصورة:</b> "+esc(portraitName||"لم يتم اختيار صورة");}}
-$("next").onclick=()=>{if(step===0){if(!analysisId){$("pdfStatus").textContent="حلّل الكتاب أولاً.";return;}goStep(1);}else if(step===1){if(!approvedLesson){$("approvalStatus").textContent="اعتمد الدرس أولاً.";return;}goStep(2);}else if(step===2)goStep(3);else if(step===3){if(!portraitName){$("portraitStatus").textContent="اختر صورة الأستاذ.";return;}goStep(4);}};
-$("back").onclick=()=>goStep(step-1);
-$("startJob").onclick=async()=>{if(!approvedLesson||!token)return;try{$("startJob").disabled=true;const key=crypto.randomUUID();const r=await api("/api/jobs",{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({lesson_id:approvedLesson.id,style,presenter:"الأستاذ فارس"})});$("finalStatus").textContent=r.reused?"المهمة موجودة مسبقاً.":"تم إرسال المهمة إلى العامل الخلفي لإعداد السيناريو.";await loadJobs();}catch(e){$("finalStatus").textContent="تعذر إنشاء المهمة: "+e.message;}finally{$("startJob").disabled=false;}};
-async function loadJobs(){const d=await api("/api/jobs");$("jobCount").textContent=d.jobs.length;$("doneCount").textContent=d.jobs.filter(j=>j.status==="completed").length;$("jobs").innerHTML=d.jobs.length?d.jobs.map(j=>'<div class="job"><b>'+esc(j.lesson_name)+'</b><br><small>'+esc(j.stage||j.status)+' · '+Number(j.progress||0)+'%</small><div class="bar"><i style="width:'+Number(j.progress||0)+'%"></i></div>'+(j.video_url?'<a href="'+esc(j.video_url)+'" target="_blank" rel="noopener">مشاهدة الفيديو</a>':"")+'</div>').join(""):'<div class="empty">لا توجد مهام بعد.</div>';}
-$("refresh").onclick=()=>loadJobs().catch(e=>{$("jobs").textContent=e.message});
-async function refreshMetrics(){if(!token)return;try{const [l,j]=await Promise.all([api("/api/lessons"),api("/api/jobs")]);$("lessonCount").textContent=l.lessons.length;$("jobCount").textContent=j.jobs.length;$("doneCount").textContent=j.jobs.filter(x=>x.status==="completed").length;}catch{}}
-goStep(0);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store={get:k=>{try{return localStorage.getItem(k)||""}catch{return""}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+$("base").value=store.get("fbase")||$("base").value;$("token").value=store.get("ftoken");
+const baseUrl=()=>$("base").value.trim().replace(/\/$/,"");
+function show(id,type,t){const e=$(id);e.className="msg "+type;e.textContent=t;}
+function tab(p){document.querySelectorAll(".page").forEach(x=>x.classList.toggle("on",x.id===p));document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.p===p));}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>tab(b.dataset.p));
+$("menu").onclick=()=>tab($("settings").classList.contains("on")?"create":"settings");
+$("share").onclick=()=>{if(navigator.share)navigator.share({title:"FARIS AI STUDIO",url:location.href}).catch(()=>{})};
+async function api(path,o={}){
+  let r;try{r=await fetch(baseUrl()+path,{...o,headers:{Authorization:"Bearer "+$("token").value.trim(),...(o.body?{"Content-Type":"application/json"}:{})}});}
+  catch{throw Error("تعذر الوصول إلى الخادم. تحقق من الرابط والإنترنت (قد يستغرق الخادم دقيقة ليستيقظ).");}
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw Error(d.message||d.error||("خطأ "+r.status));return d;
+}
+function badge(id,ok,t){const e=$(id);e.textContent=t;e.className="badge"+(ok?"":" bad");}
+async function health(){
+  try{const r=await fetch(baseUrl()+"/health");const d=await r.json();
+    badge("bSrv",true,"يعمل");badge("bDb",d.database==="connected",d.database==="connected"?"متصل":"غير متصل");badge("bAi",!!d.geminiConfigured,d.geminiConfigured?"مفعّل":"غير مفعّل");return true;}
+  catch{badge("bSrv",false,"لا يستجيب");badge("bDb",false,"—");badge("bAi",false,"—");return false;}
+}
+$("save").onclick=async()=>{store.set("fbase",baseUrl());store.set("ftoken",$("token").value.trim());
+  if(!await health()){show("sMsg","err","الخادم لا يستجيب. انتظر دقيقة وأعد المحاولة.");return;}
+  try{await api("/api/projects");show("sMsg","ok","تم الاتصال وصحّ الرمز.");loadProjects();}catch(e){show("sMsg","err",e.message);}};
+function scriptHtml(p){const s=p.script_json||{};return '<div class="proj"><b>'+esc(s.title||p.lesson_name)+'</b><small>'+esc(p.unit_name)+' · '+esc(p.lesson_name)+' · '+esc(p.voice)+'</small>'
+ +(s.summary?'<div class="scene">'+esc(s.summary)+'</div>':"")
+ +(s.scenes||[]).map(x=>'<div class="scene"><i>مشهد '+esc(x.scene)+' ('+esc(x.seconds)+'ث)</i><br>🎬 '+esc(x.visual)+'<br>🎙 '+esc(x.narration)+'</div>').join("")
+ +(s.coverage_notes&&s.coverage_notes.length?'<div class="scene">ملاحظات: '+esc(s.coverage_notes.join(" • "))+'</div>':"")
+ +'<button class="btn2" data-copy="'+esc(p.id)+'">نسخ السيناريو</button> <button class="btn2" data-del="'+esc(p.id)+'">حذف</button></div>';}
+let cache=[];
+async function loadProjects(){
+  try{const d=await api("/api/projects");cache=d.projects;$("pMsg").className="msg";
+    $("projects").innerHTML=cache.length?cache.map(scriptHtml).join(""):'<div class="msg ok" style="display:block">لا توجد مشاريع محفوظة بعد.</div>';}
+  catch(e){show("pMsg","err","تعذرت المزامنة: "+e.message);}
+}
+$("sync").onclick=loadProjects;
+$("projects").onclick=async e=>{const c=e.target.dataset.copy,d=e.target.dataset.del;
+  if(c){const p=cache.find(x=>x.id===c);const s=p.script_json||{};const t=(s.title||p.lesson_name)+"\n\n"+(s.scenes||[]).map(x=>"مشهد "+x.scene+"\nالمشهد: "+x.visual+"\nالتعليق: "+x.narration).join("\n\n");
+    try{await navigator.clipboard.writeText(t);show("pMsg","ok","تم نسخ السيناريو.");}catch{show("pMsg","err","تعذر النسخ.");}}
+  if(d&&confirm("حذف هذا المشروع؟")){try{await api("/api/projects/"+d,{method:"DELETE"});loadProjects();}catch(x){show("pMsg","err",x.message);}}};
+$("pdf").onchange=e=>{const f=e.target.files[0];$("fileInfo").textContent=f?("الملف المحدد: "+f.name+" — "+(f.size/1048576).toFixed(2)+" MB"):"لم يتم اختيار ملف.";};
+async function extract(f){const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;let t="";
+  for(let i=1;i<=pdf.numPages;i++){const c=await(await pdf.getPage(i)).getTextContent();t+=c.items.map(x=>x.str).join(" ")+"\n";if(t.length>600000)break;}return t;}
+$("analyze").onclick=async()=>{
+  const f=$("pdf").files[0],lesson=$("lesson").value.trim();
+  if(!f)return show("aMsg","err","اختر ملف الكتاب PDF أولاً.");if(!lesson)return show("aMsg","err","اكتب اسم الدرس.");
+  if(!$("token").value.trim())return show("aMsg","err","أدخل رمز الوصول من صفحة الإعدادات.");
+  $("analyze").disabled=true;show("aMsg","ok","جارٍ قراءة الكتاب...");
+  try{let text=await extract(f);
+    const i=text.indexOf(lesson);if(i>-1&&text.length>110000)text=text.slice(Math.max(0,i-5000),i+105000);
+    show("aMsg","ok","جارٍ إعداد السيناريو بواسطة Gemini (قد يستغرق نحو دقيقة)...");
+    const d=await api("/api/analyze",{method:"POST",body:JSON.stringify({grade:$("grade").value,unit:$("unit").value,lesson,duration:$("duration").value,voice:$("voice").value,extracted_text:text})});
+    show("aMsg","ok","تم إعداد السيناريو وحُفظ.");$("result").innerHTML='<div class="card">'+scriptHtml(d.project)+'</div>';cache.unshift(d.project);
+  }catch(e){show("aMsg","err","خطأ أثناء التحليل: "+e.message);}finally{$("analyze").disabled=false;}};
+health();if($("token").value)loadProjects();
 </script></body></html>
