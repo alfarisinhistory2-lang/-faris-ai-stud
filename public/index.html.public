@@ -32,7 +32,6 @@ header h1 b{color:var(--pink);margin-inline-start:6px}
 main{max-width:760px;margin:0 auto;padding:8px 16px}
 .view{display:none} .view.on{display:block}
 
-/* اللوحة المتوهجة */
 .card{position:relative;overflow:hidden;background:var(--panel);border-radius:14px;padding:20px 18px;margin-bottom:20px;
   box-shadow:inset 0 10px 20px rgba(0,0,0,.5),0 0 0 6px #2a2a34,0 12px 30px rgba(0,0,0,.45);
   border-bottom:2px solid rgba(255,255,255,.5)}
@@ -94,15 +93,6 @@ nav button{flex:1 0 auto;min-width:68px}
 .sty b{display:block;font-size:17px}
 .sty.on{border-color:var(--pink);box-shadow:0 0 14px rgba(255,39,112,.5)}
 #fullPrompt{min-height:220px}
-body.locked header,body.locked main,body.locked nav{display:none}
-#lock{display:none;position:fixed;inset:0;padding:20px;overflow-y:auto;z-index:20;
-  background:radial-gradient(circle at 50% 0%,#2b2b38 0%,var(--bg) 60%)}
-body.locked #lock{display:flex}
-.lockcard{width:min(380px,100%);margin:auto}
-.linkbtn{background:none;border:0;color:var(--cyan);cursor:pointer;font-weight:700;padding:10px 0}
-.lockcard h1{font-size:28px;text-shadow:0 0 6px var(--pink),0 0 18px var(--pink)}
-.lockcard h1 b{color:var(--pink);margin-inline-start:6px}
-.err{color:var(--bad);min-height:24px;margin-top:10px;font-weight:700;font-size:14px}
 .btn.alt{background:var(--pink);color:#fff;box-shadow:0 0 16px rgba(255,39,112,.45)}
 .tag.ok{color:var(--ok);border-color:var(--ok);text-shadow:0 0 6px var(--ok)}
 </style>
@@ -115,7 +105,6 @@ body.locked #lock{display:flex}
 </header>
 
 <main>
-  <!-- المشاريع -->
   <section class="view on" id="v-projects">
     <div class="card">
       <h2>مشروع جديد</h2>
@@ -140,7 +129,6 @@ body.locked #lock{display:flex}
     </div>
   </section>
 
-  <!-- الكتاب -->
   <section class="view" id="v-book">
     <div class="card">
       <h2>تحليل الكتاب</h2>
@@ -151,13 +139,13 @@ body.locked #lock{display:flex}
         <label class="drop" for="bPdf"><b>📄 رفع PDF</b><span class="muted" id="pdfName">لم يُختر ملف</span>
           <input id="bPdf" type="file" accept="application/pdf"></label>
         <label class="drop" for="bCam"><b>📷 تصوير الصفحات</b><span class="muted" id="camName">لم تُلتقط صور</span>
-          <input id="bCam" type="file" accept="image/*" capture="environment" multiple></label>
+          <input id="bCam" type="file" accept="image/*" multiple></label>
       </div>
       <p style="margin-top:14px"><button class="btn" id="analyze" disabled>ابدأ التحليل</button></p>
     </div>
+    <div class="card" id="bookResult" style="display:none"></div>
   </section>
 
-  <!-- السيناريو -->
   <section class="view" id="v-script">
     <div class="card">
       <h2>السيناريو</h2>
@@ -166,7 +154,6 @@ body.locked #lock{display:flex}
     </div>
   </section>
 
-  <!-- الإنتاج -->
   <section class="view" id="v-produce">
     <div class="card">
       <h2>الإنتاج</h2>
@@ -175,7 +162,6 @@ body.locked #lock{display:flex}
     </div>
   </section>
 
-  <!-- المكتبة -->
   <section class="view" id="v-library">
     <div class="card">
       <h2>مكتبة الفيديو</h2>
@@ -183,7 +169,7 @@ body.locked #lock{display:flex}
       <div class="empty">المكتبة فارغة.</div>
     </div>
   </section>
-  <!-- الشخصيات -->
+
   <section class="view" id="v-chars">
     <div class="card">
       <h2>الشخصيات</h2>
@@ -200,7 +186,7 @@ body.locked #lock{display:flex}
       <p style="margin-top:14px"><button class="btn" id="copyChar">نسخ الوصف</button></p>
     </div>
   </section>
-  <!-- الأسلوب -->
+
   <section class="view" id="v-style">
     <div class="card">
       <h2>أسلوب الفيديو</h2>
@@ -215,7 +201,7 @@ body.locked #lock{display:flex}
       <p style="margin-top:14px"><button class="btn" id="copyFull">نسخ الوصف الكامل</button></p>
     </div>
   </section>
-  <!-- الإعدادات -->
+
   <section class="view" id="v-settings">
     <div class="card">
       <h2>ربط قاعدة البيانات</h2>
@@ -258,7 +244,6 @@ const api = async (path, opts = {}) => {
 const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-/* التنقل بين الأقسام */
 function show(v) {
   document.querySelectorAll('.view').forEach(e => e.classList.toggle('on', e.id === 'v-' + v));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
@@ -269,7 +254,6 @@ $('#nav').addEventListener('click', e => { const b = e.target.closest('button');
 addEventListener('hashchange', () => show(location.hash.slice(1) || 'projects'));
 show(location.hash.slice(1) || 'projects');
 
-/* حالة الخادم وقاعدة البيانات */
 let started = false;
 async function health() {
   try {
@@ -285,7 +269,6 @@ async function health() {
 }
 health(); setInterval(health, 10000);
 
-/* المشاريع */
 let projects = [];
 function renderProjects() {
   const box = $('#projects');
@@ -295,7 +278,7 @@ function renderProjects() {
   $('#bProject').innerHTML = '<option value="">اختر مشروعاً</option>' + projects.map(p => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
 }
 async function loadProjects() {
-  try { projects = await api('/api/projects'); renderProjects(); } catch { /* الواجهة تعمل قبل بناء المسار */ }
+  try { projects = await api('/api/projects'); renderProjects(); } catch {}
 }
 $('#addProject').onclick = async () => {
   const title = $('#pTitle').value.trim();
@@ -304,23 +287,75 @@ $('#addProject').onclick = async () => {
   try {
     const p = await api('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     projects.unshift(p); renderProjects(); $('#pTitle').value = ''; toast('تم إنشاء المشروع');
-  } catch { toast('تعذّر الحفظ: مسار المشاريع لم يُبنَ في الخادم بعد'); }
+  } catch { toast('تعذّر الحفظ'); }
 };
 
-/* اختيار ملفات الكتاب */
 function refreshAnalyze() {
   $('#analyze').disabled = !($('#bProject').value && ($('#bPdf').files.length || $('#bCam').files.length));
 }
 $('#bPdf').onchange = e => { $('#pdfName').textContent = e.target.files[0]?.name || 'لم يُختر ملف'; refreshAnalyze(); };
 $('#bCam').onchange = e => { const n = e.target.files.length; $('#camName').textContent = n ? n + ' صورة جاهزة' : 'لم تُلتقط صور'; refreshAnalyze(); };
-$('#bProject').onchange = refreshAnalyze;
-$('#analyze').onclick = () => toast('مسار التحليل سنبنيه في المرحلة 3');
+
+const fileToB64 = f => new Promise((ok, no) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(',')[1]);
+  r.onerror = no; r.readAsDataURL(f);
+});
+const shrink = f => new Promise((ok, no) => {
+  const img = new Image(), url = URL.createObjectURL(f);
+  img.onload = () => {
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    ok(c.toDataURL('image/jpeg', 0.8).split(',')[1]);
+  };
+  img.onerror = no; img.src = url;
+});
+function renderBook(a) {
+  const sec = (t, arr) => arr && arr.length
+    ? `<label>${t}</label><div class="list">${arr.map(x => `<div class="item" style="border-radius:16px">${esc(x)}</div>`).join('')}</div>` : '';
+  const box = $('#bookResult');
+  box.style.display = 'block';
+  box.innerHTML = `<h2>${esc(a.title || 'نتيجة التحليل')}</h2><p class="muted">${esc(a.summary || '')}</p>`
+    + sec('النقاط الرئيسية', a.points) + sec('الشخصيات', a.people) + sec('التواريخ والأحداث', a.dates)
+    + sec('الأماكن', a.places) + sec('أسئلة التقويم', a.questions);
+}
+$('#bProject').onchange = async () => {
+  refreshAnalyze();
+  $('#bookResult').style.display = 'none';
+  const id = $('#bProject').value;
+  if (!id) return;
+  try { const a = await api(`/api/projects/${id}/book`); if (a) renderBook(a); } catch {}
+};
+$('#analyze').onclick = async () => {
+  const id = $('#bProject').value, btn = $('#analyze');
+  btn.disabled = true; btn.textContent = 'جارٍ التحليل… قد يستغرق دقيقة';
+  try {
+    let files;
+    const pdf = $('#bPdf').files[0];
+    if (pdf) {
+      if (pdf.size > 12 * 1024 * 1024) throw new Error('big');
+      files = [{ mime: 'application/pdf', data: await fileToB64(pdf) }];
+    } else {
+      const imgs = [...$('#bCam').files].slice(0, 8);
+      files = await Promise.all(imgs.map(async f => ({ mime: 'image/jpeg', data: await shrink(f) })));
+    }
+    const a = await api(`/api/projects/${id}/book`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: files })
+    });
+    renderBook(a); toast('تم التحليل');
+  } catch (e) { toast(e.message === 'big' ? 'ملف PDF أكبر من 12 ميغابايت' : 'تعذّر التحليل'); }
+  btn.textContent = 'ابدأ التحليل'; refreshAnalyze();
+};
+
 $('#copyChar').onclick = async () => {
   try { await navigator.clipboard.writeText($('#charPrompt').value); toast('تم نسخ وصف الشخصية'); }
   catch { $('#charPrompt').select(); toast('حدّد النص وانسخه يدوياً'); }
 };
 
-/* أساليب الفيديو */
 const STYLES = [
   {id:'anime-detective', name:'أنمي تحقيقي', desc:'على شاكلة مسلسلات المحققين الكرتونية: ألغاز، لقطات قريبة درامية، إضاءة مشدودة.',
    prompt:'Japanese anime TV-series look in the spirit of classic detective mystery shows. Clean thin black outlines, cel shading with flat colors and one soft shadow tone, large expressive eyes, sharp angular hair, dramatic close-ups on eyes, speed lines, sweat-drop and sparkle emotion marks, moody twilight lighting for suspense, detailed painted backgrounds.'},
@@ -354,7 +389,6 @@ $('#copyFull').onclick = async () => {
 };
 renderStyles();
 
-/* الإعدادات */
 const CONNS = { db: 'قاعدة البيانات (Neon)', gemini: 'Gemini', storage: 'التخزين السحابي (R2)' };
 async function loadSettings() {
   const box = $('#conns'); box.innerHTML = '<div class="empty">جارٍ الفحص…</div>';
@@ -362,7 +396,7 @@ async function loadSettings() {
     const st = await api('/api/settings/status');
     box.innerHTML = Object.keys(CONNS).map(k => { const v = st[k] || {};
       return `<div class="item"><div><b>${CONNS[k]}</b><div class="muted">${esc(v.msg || '')}</div></div><span class="tag ${v.ok ? 'ok' : 'bad'}">${v.ok ? 'متصل' : 'غير متصل'}</span></div>`; }).join('');
-  } catch { box.innerHTML = '<div class="empty">تعذّر الفحص: مسار الإعدادات لم يُبنَ في الخادم بعد.</div>'; }
+  } catch { box.innerHTML = '<div class="empty">تعذّر الفحص.</div>'; }
 }
 $('#testConns').onclick = loadSettings;
 $('#migrate').onclick = async () => {
