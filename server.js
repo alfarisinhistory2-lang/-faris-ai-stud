@@ -5,10 +5,9 @@ const db = require('./db');
 const PORT = process.env.PORT || 3000;
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// السماح لتطبيق الهاتف (WebView) بالاتصال بالخادم
 app.use(['/api', '/health'], (req, res, next) => {
   res.set({
     'Access-Control-Allow-Origin': '*',
@@ -19,7 +18,6 @@ app.use(['/api', '/health'], (req, res, next) => {
   next();
 });
 
-// حد بسيط للكتابة: 60 طلباً في الدقيقة لكل عنوان
 const hits = new Map();
 setInterval(() => hits.clear(), 3600000);
 app.use('/api', (req, res, next) => {
@@ -64,6 +62,37 @@ app.post('/api/projects', async (req, res) => {
     const ok = v => typeof v === 'string' && v.trim() && v.length <= 200;
     if (![title, grade, style].every(ok)) return res.status(400).json({ error: 'invalid' });
     res.json(await db.addProject({ title: title.trim(), grade, style }));
+  } catch (e) { fail500(res, e); }
+});
+
+app.get('/api/projects/:id/book', async (req, res) => {
+  try { res.json(await db.getBook(+req.params.id)); } catch (e) { fail500(res, e); }
+});
+
+app.post('/api/projects/:id/book', async (req, res) => {
+  try {
+    const images = (req.body && req.body.images) || [];
+    if (!images.length || images.length > 8) return res.status(400).json({ error: 'images 1-8' });
+    if (!process.env.GEMINI_API_KEY) return res.status(400).json({ error: 'no gemini key' });
+
+    const prompt = 'أنت معلم تاريخ سوداني. حلّل صفحات الدرس المرفقة وأعد JSON فقط بالشكل: ' +
+      '{"title":"","summary":"ملخص بسيط","points":["نقاط رئيسية"],"people":["شخصيات"],"dates":["تواريخ وأحداث"],"places":["أماكن"],"questions":["أسئلة تقويم"]}';
+    const r = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + process.env.GEMINI_API_KEY,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, ...images.map(d => ({ inline_data: { mime_type: 'image/jpeg', data: d } }))] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+    const j = await r.json();
+    if (!r.ok) { console.error('gemini:', JSON.stringify(j).slice(0, 300)); return res.status(502).json({ error: 'gemini' }); }
+    const analysis = JSON.parse(j.candidates[0].content.parts[0].text);
+    await db.saveBook(+req.params.id, analysis);
+    res.json(analysis);
   } catch (e) { fail500(res, e); }
 });
 
