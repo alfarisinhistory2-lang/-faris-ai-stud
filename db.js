@@ -1,5 +1,4 @@
 // db.js — الاتصال بقاعدة Neon (PostgreSQL)
-// الدوال المطلوبة من server.js: ping, migrate, listProjects, addProject
 const { Pool } = require('pg');
 
 const pool = new Pool({
@@ -50,4 +49,19 @@ async function addProject({ title, grade, style }) {
   return r.rows[0];
 }
 
-module.exports = { ping, migrate, listProjects, addProject };
+async function saveBook(projectId, analysis) {
+  requireUrl();
+  await pool.query(
+    `INSERT INTO project_books (project_id, analysis) VALUES ($1, $2)
+     ON CONFLICT (project_id) DO UPDATE SET analysis = $2, updated_at = now()`,
+    [projectId, analysis]
+  );
+}
+
+async function getBook(projectId) {
+  requireUrl();
+  const r = await pool.query('SELECT analysis FROM project_books WHERE project_id = $1', [projectId]);
+  return r.rows[0] ? r.rows[0].analysis : null;
+}
+
+module.exports = { ping, migrate, listProjects, addProject, saveBook, getBook };
