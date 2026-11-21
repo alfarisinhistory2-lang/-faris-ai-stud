@@ -83,7 +83,7 @@ app.post('/api/projects/:id/book', async (req, res) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }, ...images.map(d => ({ inline_data: { mime_type: 'image/jpeg', data: d } }))] }],
+          contents: [{ parts: [{ text: prompt }, ...images.map(d => ({ inline_data: typeof d === 'string' ? { mime_type: 'image/jpeg', data: d } : { mime_type: d.mime, data: d.data } }))] }],
           generationConfig: { responseMimeType: 'application/json' },
         }),
       }
