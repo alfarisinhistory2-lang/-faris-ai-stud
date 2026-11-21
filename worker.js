@@ -43,7 +43,11 @@ async function makeScript(lesson, productionConfig = {}) {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY غير مضبوط؛ لا يمكن إعداد السيناريو تلقائياً.");
   }
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const candidates = [
+    ...new Set(
+      [process.env.GEMINI_MODEL, "gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash"].filter(Boolean)
+    )
+  ];
   const prompt = `أنت مساعد إعداد حصص تعليمية. استخدم المصدر فقط ولا تضف حقائق غير موجودة فيه.
 أعد JSON صالحاً فقط بالشكل:
 {"learningObjectives":[],"script":"...","scenes":[{"number":1,"durationSeconds":8,"visual":"...","voiceover":"..."}]}
@@ -55,19 +59,33 @@ async function makeScript(lesson, productionConfig = {}) {
 الدرس: ${lesson.lesson_name}
 المصدر:
 ${lesson.source_text}`;
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
-      })
+
+  let data = null;
+  let lastError = "";
+  for (const model of candidates) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
+        })
+      }
+    );
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) {
+      data = body;
+      console.log("Gemini model used:", model);
+      break;
     }
-  );
-  if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
-  const data = await response.json();
+    lastError = `Gemini API error ${response.status} (${model}): ${body.error?.message || "unknown"}`;
+    console.error(lastError);
+    if (response.status !== 404) throw new Error(lastError);
+  }
+  if (!data) throw new Error(lastError || "تعذر الوصول إلى أي نموذج Gemini");
+
   const raw = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("");
   if (!raw) throw new Error("لم يرجع Gemini سيناريو");
   return JSON.parse(raw);
