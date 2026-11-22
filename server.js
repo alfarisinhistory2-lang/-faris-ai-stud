@@ -3,10 +3,13 @@ const path = require('path');
 const db = require('./db');
 
 const PORT = process.env.PORT || 3000;
+const MODEL = 'gemini-3.8-flash';
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '25mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+}));
 
 app.use(['/api', '/health'], (req, res, next) => {
   res.set({
@@ -29,7 +32,32 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-const fail500 = (res, e) => { console.error(e.message); res.status(500).json({ error: 'server' }); };
+const fail500 = (res, e) => {
+  console.error(e.message);
+  if (e.gemini) return res.status(502).json({ error: 'gemini' });
+  res.status(500).json({ error: 'server' });
+};
+
+async function gemini(parts) {
+  if (!process.env.GEMINI_API_KEY) { const e = new Error('no key'); e.gemini = true; throw e; }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  for (let i = 0; i < 3; i++) {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { responseMimeType: 'application/json' },
+      }),
+    });
+    const j = await r.json();
+    if (r.ok) return JSON.parse(j.candidates[0].content.parts[0].text);
+    console.error('gemini:', JSON.stringify(j).slice(0, 300));
+    if (![429, 500, 503].includes(r.status)) break;
+    await new Promise(s => setTimeout(s, 3000 * (i + 1)));
+  }
+  const e = new Error('gemini failed'); e.gemini = true; throw e;
+}
 
 app.get('/health', async (req, res) => {
   let ok = false;
@@ -73,26 +101,59 @@ app.post('/api/projects/:id/book', async (req, res) => {
   try {
     const images = (req.body && req.body.images) || [];
     if (!images.length || images.length > 8) return res.status(400).json({ error: 'images 1-8' });
-    if (!process.env.GEMINI_API_KEY) return res.status(400).json({ error: 'no gemini key' });
-
     const prompt = 'أنت معلم تاريخ سوداني. حلّل صفحات الدرس المرفقة وأعد JSON فقط بالشكل: ' +
       '{"title":"","summary":"ملخص بسيط","points":["نقاط رئيسية"],"people":["شخصيات"],"dates":["تواريخ وأحداث"],"places":["أماكن"],"questions":["أسئلة تقويم"]}';
-    const r = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' + process.env.GEMINI_API_KEY,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }, ...images.map(d => ({ inline_data: typeof d === 'string' ? { mime_type: 'image/jpeg', data: d } : { mime_type: d.mime, data: d.data } }))] }],
-          generationConfig: { responseMimeType: 'application/json' },
-        }),
-      }
-    );
-    const j = await r.json();
-    if (!r.ok) { console.error('gemini:', JSON.stringify(j).slice(0, 300)); return res.status(502).json({ error: 'gemini' }); }
-    const analysis = JSON.parse(j.candidates[0].content.parts[0].text);
+    const parts = [{ text: prompt }, ...images.map(d => ({
+      inline_data: typeof d === 'string' ? { mime_type: 'image/jpeg', data: d } : { mime_type: d.mime, data: d.data },
+    }))];
+    const analysis = await gemini(parts);
     await db.saveBook(+req.params.id, analysis);
     res.json(analysis);
+  } catch (e) { fail500(res, e); }
+});
+
+app.get('/api/projects/:id/script', async (req, res) => {
+  try { res.json(await db.getScript(+req.params.id)); } catch (e) { fail500(res, e); }
+});
+
+app.post('/api/projects/:id/script', async (req, res) => {
+  try {
+    const id = +req.params.id;
+    const project = await db.getProject(id);
+    if (!project) return res.status(404).json({ error: 'no project' });
+    const book = await db.getBook(id);
+    if (!book) return res.status(400).json({ error: 'no book' });
+
+    const prompt =
+      'أنت كاتب سيناريو فيديوهات تعليمية كرتونية قصيرة لتلاميذ ' + project.grade + ' في السودان. ' +
+      'الشخصية الرئيسية هي "الأستاذ فارس" معلم التاريخ. اكتب سيناريو فيديو من 6 مشاهد بالضبط عن الدرس: ' + project.title + '. ' +
+      'استند فقط إلى تحليل الدرس التالي ولا تضف معلومات من خارجه: ' + JSON.stringify(book) + ' ' +
+      'القواعد: المشهد الأول يشوّق ويطرح سؤالًا، والأخير يلخّص ويختم بسؤال للتلاميذ. ' +
+      'التعليق الصوتي (narration) بعربية مبسطة تناسب الصف، من 2 إلى 3 جمل قصيرة لكل مشهد. ' +
+      'الوصف المرئي (visual) بالإنجليزية فقط، جملة أو جملتان تصفان الحدث والكاميرا والمكان، ' +
+      'دون وصف شكل الأستاذ فارس أو أسلوب الرسم لأنهما يُضافان لاحقًا. ' +
+      'أعد JSON فقط بالشكل: {"scenes":[{"title":"عنوان قصير","narration":"...","visual":"..."}]}';
+    const out = await gemini([{ text: prompt }]);
+    const scenes = (out.scenes || []).slice(0, 6).map(s => ({
+      title: String(s.title || ''), narration: String(s.narration || ''), visual: String(s.visual || ''),
+    }));
+    if (scenes.length < 3) return res.status(502).json({ error: 'gemini' });
+    await db.saveScript(id, scenes);
+    res.json(scenes);
+  } catch (e) { fail500(res, e); }
+});
+
+app.post('/api/projects/:id/script/save', async (req, res) => {
+  try {
+    const scenes = req.body && req.body.scenes;
+    if (!Array.isArray(scenes) || !scenes.length || scenes.length > 20) return res.status(400).json({ error: 'invalid' });
+    const clean = scenes.map(s => ({
+      title: String(s.title || '').slice(0, 200),
+      narration: String(s.narration || '').slice(0, 2000),
+      visual: String(s.visual || '').slice(0, 2000),
+    }));
+    await db.saveScript(+req.params.id, clean);
+    res.json({ ok: true });
   } catch (e) { fail500(res, e); }
 });
 
