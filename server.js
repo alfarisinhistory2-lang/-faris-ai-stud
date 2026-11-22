@@ -3,7 +3,6 @@ const path = require('path');
 const db = require('./db');
 
 const PORT = process.env.PORT || 3000;
-const MODEL = 'gemini-3.8-flash';
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '25mb' }));
@@ -38,23 +37,30 @@ const fail500 = (res, e) => {
   res.status(500).json({ error: 'server' });
 };
 
+const MODELS = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.8-flash-lite'];
+const sleep = ms => new Promise(s => setTimeout(s, ms));
+
 async function gemini(parts) {
   if (!process.env.GEMINI_API_KEY) { const e = new Error('no key'); e.gemini = true; throw e; }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
-  for (let i = 0; i < 3; i++) {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { responseMimeType: 'application/json' },
-      }),
-    });
-    const j = await r.json();
-    if (r.ok) return JSON.parse(j.candidates[0].content.parts[0].text);
-    console.error('gemini:', JSON.stringify(j).slice(0, 300));
-    if (![429, 500, 503].includes(r.status)) break;
-    await new Promise(s => setTimeout(s, 3000 * (i + 1)));
+  for (const model of MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    for (let i = 0; i < 2; i++) {
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json' } }),
+        });
+        const j = await r.json();
+        if (r.ok) return JSON.parse(j.candidates[0].content.parts[0].text);
+        console.error('gemini[' + model + ']:', JSON.stringify(j).slice(0, 200));
+        if (r.status === 503) { await sleep(3000); continue; }
+        break;
+      } catch (e) {
+        console.error('gemini[' + model + '] error:', e.message);
+        await sleep(2000);
+      }
+    }
   }
   const e = new Error('gemini failed'); e.gemini = true; throw e;
 }
