@@ -51,7 +51,7 @@ label{display:block;font-weight:700;margin:14px 0 6px;font-size:15px}
 input,select,textarea{width:100%;padding:11px 18px;border:2px solid #fff;border-radius:99px;background:transparent;
   transition:box-shadow .2s,border-color .2s}
 select option{background:#23232e;color:#fff}
-input:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 10px rgba(69,243,255,.55);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 10px rgba(69,243,255,.55);outline:none}
 .row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1 1 150px}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:8px 26px;width:100%;
@@ -95,6 +95,11 @@ nav button{flex:1 0 auto;min-width:68px}
 #fullPrompt{min-height:220px}
 .btn.alt{background:var(--pink);color:#fff;box-shadow:0 0 16px rgba(255,39,112,.45)}
 .tag.ok{color:var(--ok);border-color:var(--ok);text-shadow:0 0 6px var(--ok)}
+/* السيناريو */
+.sc textarea{min-height:90px;font-size:15px}
+.sc textarea.ar{direction:rtl;text-align:right}
+.sc .num{display:inline-block;margin-inline-end:8px}
+.sc input{font-weight:700}
 </style>
 </head>
 <body>
@@ -149,8 +154,17 @@ nav button{flex:1 0 auto;min-width:68px}
   <section class="view" id="v-script">
     <div class="card">
       <h2>السيناريو</h2>
-      <p class="muted">يظهر هنا السيناريو المولَّد لتراجعه وتعدّله قبل الإنتاج.</p>
-      <div class="empty">لا يوجد سيناريو بعد. حلّل كتاباً أولاً.</div>
+      <p class="muted">يُولَّد من تحليل الدرس: 6 مشاهد بالأستاذ فارس، لكل مشهد تعليق صوتي ووصف مرئي. راجعه وعدّله ثم احفظ.</p>
+      <label for="sProject">المشروع</label>
+      <select id="sProject"><option value="">اختر مشروعاً</option></select>
+      <p style="margin-top:14px"><button class="btn" id="genScript" disabled>توليد السيناريو (6 مشاهد)</button></p>
+    </div>
+    <div id="scenes"></div>
+    <div class="card" id="scriptActions" style="display:none">
+      <div class="row">
+        <button class="btn" id="saveScript">حفظ التعديلات</button>
+        <button class="btn alt" id="copyScript">نسخ السيناريو</button>
+      </div>
     </div>
   </section>
 
@@ -238,11 +252,12 @@ nav button{flex:1 0 auto;min-width:68px}
 const $ = s => document.querySelector(s);
 const api = async (path, opts = {}) => {
   const r = await fetch(path, opts);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) { const e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
   return r.json();
 };
-const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); };
+const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2800); };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const JSONH = { 'Content-Type': 'application/json' };
 
 function show(v) {
   document.querySelectorAll('.view').forEach(e => e.classList.toggle('on', e.id === 'v-' + v));
@@ -269,13 +284,17 @@ async function health() {
 }
 health(); setInterval(health, 10000);
 
+/* المشاريع */
 let projects = [];
 function renderProjects() {
   const box = $('#projects');
   box.innerHTML = projects.length
     ? projects.map(p => `<div class="item"><div><b>${esc(p.title)}</b><div class="muted">${esc(p.grade)} · ${esc(p.style)}</div></div><span class="tag">${esc(p.status || 'جديد')}</span></div>`).join('')
     : '<div class="empty">لا توجد مشاريع بعد. أنشئ أول مشروع من الأعلى.</div>';
-  $('#bProject').innerHTML = '<option value="">اختر مشروعاً</option>' + projects.map(p => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
+  const opts = '<option value="">اختر مشروعاً</option>' + projects.map(p => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
+  const bv = $('#bProject').value, sv = $('#sProject').value;
+  $('#bProject').innerHTML = opts; $('#sProject').innerHTML = opts;
+  $('#bProject').value = bv; $('#sProject').value = sv;
 }
 async function loadProjects() {
   try { projects = await api('/api/projects'); renderProjects(); } catch {}
@@ -285,11 +304,12 @@ $('#addProject').onclick = async () => {
   if (!title) return toast('اكتب عنوان الدرس أولاً');
   const body = { title, grade: $('#pGrade').value, style: $('#pStyle').value };
   try {
-    const p = await api('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const p = await api('/api/projects', { method: 'POST', headers: JSONH, body: JSON.stringify(body) });
     projects.unshift(p); renderProjects(); $('#pTitle').value = ''; toast('تم إنشاء المشروع');
   } catch { toast('تعذّر الحفظ'); }
 };
 
+/* الكتاب */
 function refreshAnalyze() {
   $('#analyze').disabled = !($('#bProject').value && ($('#bPdf').files.length || $('#bCam').files.length));
 }
@@ -342,20 +362,76 @@ $('#analyze').onclick = async () => {
       const imgs = [...$('#bCam').files].slice(0, 8);
       files = await Promise.all(imgs.map(async f => ({ mime: 'image/jpeg', data: await shrink(f) })));
     }
-    const a = await api(`/api/projects/${id}/book`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images: files })
-    });
+    const a = await api(`/api/projects/${id}/book`, { method: 'POST', headers: JSONH, body: JSON.stringify({ images: files }) });
     renderBook(a); toast('تم التحليل');
   } catch (e) { toast(e.message === 'big' ? 'ملف PDF أكبر من 12 ميغابايت' : 'تعذّر التحليل'); }
   btn.textContent = 'ابدأ التحليل'; refreshAnalyze();
 };
 
+/* السيناريو */
+let scenes = [];
+function renderScenes() {
+  const box = $('#scenes');
+  if (!scenes.length) { box.innerHTML = ''; $('#scriptActions').style.display = 'none'; return; }
+  box.innerHTML = scenes.map((s, i) => `
+    <div class="card sc" data-i="${i}">
+      <h2><span class="num tag">${i + 1}</span>مشهد</h2>
+      <label>عنوان المشهد</label>
+      <input class="f-title" value="${esc(s.title)}">
+      <label>التعليق الصوتي (عربي)</label>
+      <textarea class="f-narr ar">${esc(s.narration)}</textarea>
+      <label>الوصف المرئي (إنجليزي)</label>
+      <textarea class="f-vis">${esc(s.visual)}</textarea>
+    </div>`).join('');
+  $('#scriptActions').style.display = 'block';
+}
+function collectScenes() {
+  return [...document.querySelectorAll('#scenes .sc')].map(c => ({
+    title: c.querySelector('.f-title').value.trim(),
+    narration: c.querySelector('.f-narr').value.trim(),
+    visual: c.querySelector('.f-vis').value.trim(),
+  }));
+}
+$('#sProject').onchange = async () => {
+  const id = $('#sProject').value;
+  $('#genScript').disabled = !id;
+  scenes = []; renderScenes();
+  if (!id) return;
+  try { const s = await api(`/api/projects/${id}/script`); if (s && s.length) { scenes = s; renderScenes(); } } catch {}
+};
+$('#genScript').onclick = async () => {
+  const id = $('#sProject').value, btn = $('#genScript');
+  if (scenes.length && !confirm('سيُستبدل السيناريو الحالي بسيناريو جديد. متابعة؟')) return;
+  btn.disabled = true; btn.textContent = 'جارٍ كتابة السيناريو… قد يستغرق دقيقة';
+  try {
+    scenes = await api(`/api/projects/${id}/script`, { method: 'POST', headers: JSONH, body: '{}' });
+    renderScenes(); toast('تم توليد السيناريو');
+  } catch (e) {
+    toast(e.status === 400 ? 'حلّل كتاب هذا الدرس أولاً من تبويب الكتاب' : 'تعذّر توليد السيناريو، أعد المحاولة');
+  }
+  btn.textContent = 'توليد السيناريو (6 مشاهد)'; btn.disabled = !$('#sProject').value;
+};
+$('#saveScript').onclick = async () => {
+  const id = $('#sProject').value;
+  try {
+    scenes = collectScenes();
+    await api(`/api/projects/${id}/script/save`, { method: 'POST', headers: JSONH, body: JSON.stringify({ scenes }) });
+    toast('تم حفظ التعديلات');
+  } catch { toast('تعذّر الحفظ'); }
+};
+$('#copyScript').onclick = async () => {
+  const txt = collectScenes().map((s, i) => `مشهد ${i + 1}: ${s.title}\n${s.narration}\n${s.visual}`).join('\n\n');
+  try { await navigator.clipboard.writeText(txt); toast('تم نسخ السيناريو'); }
+  catch { toast('تعذّر النسخ'); }
+};
+
+/* الشخصية */
 $('#copyChar').onclick = async () => {
   try { await navigator.clipboard.writeText($('#charPrompt').value); toast('تم نسخ وصف الشخصية'); }
   catch { $('#charPrompt').select(); toast('حدّد النص وانسخه يدوياً'); }
 };
 
+/* الأساليب */
 const STYLES = [
   {id:'anime-detective', name:'أنمي تحقيقي', desc:'على شاكلة مسلسلات المحققين الكرتونية: ألغاز، لقطات قريبة درامية، إضاءة مشدودة.',
    prompt:'Japanese anime TV-series look in the spirit of classic detective mystery shows. Clean thin black outlines, cel shading with flat colors and one soft shadow tone, large expressive eyes, sharp angular hair, dramatic close-ups on eyes, speed lines, sweat-drop and sparkle emotion marks, moody twilight lighting for suspense, detailed painted backgrounds.'},
@@ -389,6 +465,7 @@ $('#copyFull').onclick = async () => {
 };
 renderStyles();
 
+/* الإعدادات */
 const CONNS = { db: 'قاعدة البيانات (Neon)', gemini: 'Gemini', storage: 'التخزين السحابي (R2)' };
 async function loadSettings() {
   const box = $('#conns'); box.innerHTML = '<div class="empty">جارٍ الفحص…</div>';
