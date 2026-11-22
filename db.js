@@ -40,6 +40,12 @@ async function listProjects() {
   return r.rows;
 }
 
+async function getProject(id) {
+  requireUrl();
+  const r = await pool.query('SELECT id, title, grade, style FROM studio_projects WHERE id = $1', [id]);
+  return r.rows[0] || null;
+}
+
 async function addProject({ title, grade, style }) {
   requireUrl();
   const r = await pool.query(
@@ -64,4 +70,19 @@ async function getBook(projectId) {
   return r.rows[0] ? r.rows[0].analysis : null;
 }
 
-module.exports = { ping, migrate, listProjects, addProject, saveBook, getBook };
+async function saveScript(projectId, scenes) {
+  requireUrl();
+  await pool.query(
+    `INSERT INTO project_scripts (project_id, scenes) VALUES ($1, $2)
+     ON CONFLICT (project_id) DO UPDATE SET scenes = $2, updated_at = now()`,
+    [projectId, JSON.stringify(scenes)]
+  );
+}
+
+async function getScript(projectId) {
+  requireUrl();
+  const r = await pool.query('SELECT scenes FROM project_scripts WHERE project_id = $1', [projectId]);
+  return r.rows[0] ? r.rows[0].scenes : null;
+}
+
+module.exports = { ping, migrate, listProjects, getProject, addProject, saveBook, getBook, saveScript, getScript };
