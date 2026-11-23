@@ -60,6 +60,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 
 .btn:hover{box-shadow:0 0 26px rgba(69,243,255,.8)}
 .btn:active{transform:scale(.97)}
 .btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.btn.small{min-height:38px;padding:4px 16px;font-size:14px}
 .drop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 12px;text-align:center;
   border:2px dashed rgba(255,255,255,.6);border-radius:14px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
 .drop:hover{border-color:var(--pink);box-shadow:0 0 12px rgba(255,39,112,.45)}
@@ -95,11 +96,15 @@ nav button{flex:1 0 auto;min-width:68px}
 #fullPrompt{min-height:220px}
 .btn.alt{background:var(--pink);color:#fff;box-shadow:0 0 16px rgba(255,39,112,.45)}
 .tag.ok{color:var(--ok);border-color:var(--ok);text-shadow:0 0 6px var(--ok)}
-/* السيناريو */
 .sc textarea{min-height:90px;font-size:15px}
 .sc textarea.ar{direction:rtl;text-align:right}
 .sc .num{display:inline-block;margin-inline-end:8px}
 .sc input{font-weight:700}
+/* الإنتاج */
+.pr .num{display:inline-block;margin-inline-end:8px}
+.pr textarea{min-height:130px;font-size:13px}
+.pr textarea.ar{direction:rtl;text-align:right;min-height:80px;font-size:15px}
+.pr .row{margin-top:10px}
 </style>
 </head>
 <body>
@@ -171,8 +176,16 @@ nav button{flex:1 0 auto;min-width:68px}
   <section class="view" id="v-produce">
     <div class="card">
       <h2>الإنتاج</h2>
-      <p class="muted">الصور والصوت العربي وتجميع الفيديو، وتعمل في السحابة حتى لو أُغلق هاتفك.</p>
-      <div class="empty">لا توجد مهام إنتاج جارية.</div>
+      <p class="muted">لكل مشهد وصف صورة كامل (الأستاذ فارس + الأسلوب + المشهد) جاهز للنسخ إلى أداة توليد الصور، والتعليق الصوتي جاهز للنسخ إلى أداة الصوت.</p>
+      <label for="pjProject">المشروع</label>
+      <select id="pjProject"><option value="">اختر مشروعاً</option></select>
+    </div>
+    <div id="pjScenes"></div>
+    <div class="card" id="pjActions" style="display:none">
+      <div class="row">
+        <button class="btn" id="copyAllImg">نسخ كل أوصاف الصور</button>
+        <button class="btn alt" id="copyAllNarr">نسخ كل التعليقات الصوتية</button>
+      </div>
     </div>
   </section>
 
@@ -258,6 +271,10 @@ const api = async (path, opts = {}) => {
 const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2800); };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const JSONH = { 'Content-Type': 'application/json' };
+const copyText = async (txt, okMsg) => {
+  try { await navigator.clipboard.writeText(txt); toast(okMsg); }
+  catch { toast('تعذّر النسخ'); }
+};
 
 function show(v) {
   document.querySelectorAll('.view').forEach(e => e.classList.toggle('on', e.id === 'v-' + v));
@@ -292,9 +309,9 @@ function renderProjects() {
     ? projects.map(p => `<div class="item"><div><b>${esc(p.title)}</b><div class="muted">${esc(p.grade)} · ${esc(p.style)}</div></div><span class="tag">${esc(p.status || 'جديد')}</span></div>`).join('')
     : '<div class="empty">لا توجد مشاريع بعد. أنشئ أول مشروع من الأعلى.</div>';
   const opts = '<option value="">اختر مشروعاً</option>' + projects.map(p => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
-  const bv = $('#bProject').value, sv = $('#sProject').value;
-  $('#bProject').innerHTML = opts; $('#sProject').innerHTML = opts;
-  $('#bProject').value = bv; $('#sProject').value = sv;
+  ['#bProject', '#sProject', '#pjProject'].forEach(sel => {
+    const el = $(sel), v = el.value; el.innerHTML = opts; el.value = v;
+  });
 }
 async function loadProjects() {
   try { projects = await api('/api/projects'); renderProjects(); } catch {}
@@ -419,11 +436,54 @@ $('#saveScript').onclick = async () => {
     toast('تم حفظ التعديلات');
   } catch { toast('تعذّر الحفظ'); }
 };
-$('#copyScript').onclick = async () => {
+$('#copyScript').onclick = () => {
   const txt = collectScenes().map((s, i) => `مشهد ${i + 1}: ${s.title}\n${s.narration}\n${s.visual}`).join('\n\n');
-  try { await navigator.clipboard.writeText(txt); toast('تم نسخ السيناريو'); }
-  catch { toast('تعذّر النسخ'); }
+  copyText(txt, 'تم نسخ السيناريو');
 };
+
+/* الإنتاج: أوصاف الصور والتعليق الصوتي */
+let pjScenes = [], pjProj = null;
+function pjImagePrompt(s) {
+  const st = STYLES.find(x => x.name === (pjProj && pjProj.style)) || STYLES.find(x => x.id === styleId);
+  return $('#charPrompt').value + '\n\nScene: ' + s.visual + '\n\nStyle: ' + st.prompt +
+    '\n\n16:9 widescreen frame, no text or captions inside the image.';
+}
+function renderProduction() {
+  const box = $('#pjScenes');
+  if (!pjScenes.length) { box.innerHTML = ''; $('#pjActions').style.display = 'none'; return; }
+  box.innerHTML = pjScenes.map((s, i) => `
+    <div class="card pr" data-i="${i}">
+      <h2><span class="num tag">${i + 1}</span>${esc(s.title)}</h2>
+      <label>وصف الصورة (للصق في أداة الصور)</label>
+      <textarea readonly>${esc(pjImagePrompt(s))}</textarea>
+      <div class="row"><button class="btn small" data-copy="img" data-i="${i}">نسخ وصف الصورة</button></div>
+      <label>التعليق الصوتي (للصق في أداة الصوت)</label>
+      <textarea class="ar" readonly>${esc(s.narration)}</textarea>
+      <div class="row"><button class="btn small alt" data-copy="narr" data-i="${i}">نسخ التعليق</button></div>
+    </div>`).join('');
+  $('#pjActions').style.display = 'block';
+}
+$('#pjProject').onchange = async () => {
+  const id = $('#pjProject').value;
+  pjScenes = []; pjProj = projects.find(p => String(p.id) === id) || null;
+  renderProduction();
+  if (!id) return;
+  try {
+    const s = await api(`/api/projects/${id}/script`);
+    if (s && s.length) { pjScenes = s; renderProduction(); }
+    else toast('لا يوجد سيناريو لهذا المشروع. ولّده من تبويب السيناريو');
+  } catch { toast('تعذّر تحميل السيناريو'); }
+};
+$('#pjScenes').addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  const s = pjScenes[+b.dataset.i];
+  if (b.dataset.copy === 'img') copyText(pjImagePrompt(s), 'تم نسخ وصف الصورة');
+  else copyText(s.narration, 'تم نسخ التعليق الصوتي');
+});
+$('#copyAllImg').onclick = () =>
+  copyText(pjScenes.map((s, i) => `=== Scene ${i + 1} ===\n${pjImagePrompt(s)}`).join('\n\n'), 'تم نسخ كل أوصاف الصور');
+$('#copyAllNarr').onclick = () =>
+  copyText(pjScenes.map((s, i) => `مشهد ${i + 1}: ${s.title}\n${s.narration}`).join('\n\n'), 'تم نسخ كل التعليقات');
 
 /* الشخصية */
 $('#copyChar').onclick = async () => {
@@ -459,10 +519,7 @@ $('#styles').addEventListener('click', e => {
   try { localStorage.setItem('styleId', styleId); } catch {}
   renderStyles(); toast('تم اختيار الأسلوب');
 });
-$('#copyFull').onclick = async () => {
-  try { await navigator.clipboard.writeText($('#fullPrompt').value); toast('تم نسخ الوصف الكامل'); }
-  catch { $('#fullPrompt').select(); toast('حدّد النص وانسخه يدوياً'); }
-};
+$('#copyFull').onclick = () => copyText($('#fullPrompt').value, 'تم نسخ الوصف الكامل');
 renderStyles();
 
 /* الإعدادات */
