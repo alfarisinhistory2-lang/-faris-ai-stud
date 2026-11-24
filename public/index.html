@@ -100,11 +100,14 @@ nav button{flex:1 0 auto;min-width:68px}
 .sc textarea.ar{direction:rtl;text-align:right}
 .sc .num{display:inline-block;margin-inline-end:8px}
 .sc input{font-weight:700}
-/* الإنتاج */
 .pr .num{display:inline-block;margin-inline-end:8px}
 .pr textarea{min-height:130px;font-size:13px}
 .pr textarea.ar{direction:rtl;text-align:right;min-height:80px;font-size:15px}
 .pr .row{margin-top:10px}
+.pr .drop{padding:14px;margin-top:10px}
+.media{width:100%;border-radius:14px;margin-top:10px;display:block;background:#000}
+.file{padding:14px;border:2px solid rgba(255,255,255,.25);border-radius:16px}
+.file a{color:var(--cyan);font-weight:700;text-decoration:none}
 </style>
 </head>
 <body>
@@ -176,7 +179,7 @@ nav button{flex:1 0 auto;min-width:68px}
   <section class="view" id="v-produce">
     <div class="card">
       <h2>الإنتاج</h2>
-      <p class="muted">لكل مشهد وصف صورة كامل (الأستاذ فارس + الأسلوب + المشهد) جاهز للنسخ إلى أداة توليد الصور، والتعليق الصوتي جاهز للنسخ إلى أداة الصوت.</p>
+      <p class="muted">لكل مشهد وصف صورة جاهز للنسخ، ثم ارفع الصورة والصوت الناتجين فيُحفظان في مجلد الدرس.</p>
       <label for="pjProject">المشروع</label>
       <select id="pjProject"><option value="">اختر مشروعاً</option></select>
     </div>
@@ -192,9 +195,14 @@ nav button{flex:1 0 auto;min-width:68px}
   <section class="view" id="v-library">
     <div class="card">
       <h2>مكتبة الفيديو</h2>
-      <p class="muted">الفيديوهات المكتملة، لكل درس مجلده.</p>
-      <div class="empty">المكتبة فارغة.</div>
+      <p class="muted">ملفات كل درس في مجلد مستقل: الصور والصوت والفيديو النهائي.</p>
+      <label for="lbProject">المشروع</label>
+      <select id="lbProject"><option value="">اختر مشروعاً</option></select>
+      <label class="drop" for="lbVideo" style="margin-top:14px"><b>🎞️ رفع الفيديو النهائي</b>
+        <span class="muted">حتى 14 ميغابايت</span>
+        <input id="lbVideo" type="file" accept="video/*"></label>
     </div>
+    <div id="lbFiles"></div>
   </section>
 
   <section class="view" id="v-chars">
@@ -244,6 +252,7 @@ nav button{flex:1 0 auto;min-width:68px}
       <div class="list">
         <div class="item"><b dir="ltr">DATABASE_URL</b><span class="muted">رابط Neon</span></div>
         <div class="item"><b dir="ltr">GEMINI_API_KEY</b><span class="muted">مفتاح Gemini</span></div>
+        <div class="item"><b dir="ltr">S3_*</b><span class="muted">التخزين السحابي</span></div>
       </div>
     </div>
   </section>
@@ -275,6 +284,13 @@ const copyText = async (txt, okMsg) => {
   try { await navigator.clipboard.writeText(txt); toast(okMsg); }
   catch { toast('تعذّر النسخ'); }
 };
+const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+const extOf = (name, def) => { const m = /\.([A-Za-z0-9]{1,5})$/.exec(name || ''); return m ? m[1].toLowerCase() : def; };
+const MAX_UP = 14 * 1024 * 1024;
+const mediaUrl = (id, name) => `/api/projects/${id}/media/${encodeURIComponent(name)}?v=${Date.now()}`;
+const uploadMedia = (id, name, mime, data) =>
+  api(`/api/projects/${id}/media`, { method: 'POST', headers: JSONH, body: JSON.stringify({ name, mime, data }) });
+const upErr = e => toast(e.status === 503 ? 'التخزين غير مضبوط' : e.status === 400 ? 'الملف غير مقبول أو كبير' : 'تعذّر الرفع');
 
 function show(v) {
   document.querySelectorAll('.view').forEach(e => e.classList.toggle('on', e.id === 'v-' + v));
@@ -309,7 +325,7 @@ function renderProjects() {
     ? projects.map(p => `<div class="item"><div><b>${esc(p.title)}</b><div class="muted">${esc(p.grade)} · ${esc(p.style)}</div></div><span class="tag">${esc(p.status || 'جديد')}</span></div>`).join('')
     : '<div class="empty">لا توجد مشاريع بعد. أنشئ أول مشروع من الأعلى.</div>';
   const opts = '<option value="">اختر مشروعاً</option>' + projects.map(p => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
-  ['#bProject', '#sProject', '#pjProject'].forEach(sel => {
+  ['#bProject', '#sProject', '#pjProject', '#lbProject'].forEach(sel => {
     const el = $(sel), v = el.value; el.innerHTML = opts; el.value = v;
   });
 }
@@ -346,7 +362,7 @@ const shrink = f => new Promise((ok, no) => {
     c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
     URL.revokeObjectURL(url);
-    ok(c.toDataURL('image/jpeg', 0.8).split(',')[1]);
+    ok(c.toDataURL('image/jpeg', 0.85).split(',')[1]);
   };
   img.onerror = no; img.src = url;
 });
@@ -441,36 +457,57 @@ $('#copyScript').onclick = () => {
   copyText(txt, 'تم نسخ السيناريو');
 };
 
-/* الإنتاج: أوصاف الصور والتعليق الصوتي */
-let pjScenes = [], pjProj = null;
+/* الإنتاج: أوصاف + رفع صورة وصوت لكل مشهد */
+let pjScenes = [], pjProj = null, pjMedia = [], pjId = '';
 function pjImagePrompt(s) {
   const st = STYLES.find(x => x.name === (pjProj && pjProj.style)) || STYLES.find(x => x.id === styleId);
   return $('#charPrompt').value + '\n\nScene: ' + s.visual + '\n\nStyle: ' + st.prompt +
     '\n\n16:9 widescreen frame, no text or captions inside the image.';
 }
+const latestMedia = prefix => pjMedia
+  .filter(m => m.name.startsWith(prefix))
+  .sort((a, b) => String(b.modified).localeCompare(String(a.modified)))[0];
+async function loadPjMedia() {
+  pjMedia = [];
+  if (!pjId) return;
+  try { pjMedia = await api(`/api/projects/${pjId}/media`); } catch {}
+}
 function renderProduction() {
   const box = $('#pjScenes');
   if (!pjScenes.length) { box.innerHTML = ''; $('#pjActions').style.display = 'none'; return; }
-  box.innerHTML = pjScenes.map((s, i) => `
+  box.innerHTML = pjScenes.map((s, i) => {
+    const n = i + 1;
+    const img = latestMedia(`scene-${n}-image.`), aud = latestMedia(`scene-${n}-audio.`);
+    return `
     <div class="card pr" data-i="${i}">
-      <h2><span class="num tag">${i + 1}</span>${esc(s.title)}</h2>
+      <h2><span class="num tag">${n}</span>${esc(s.title)}</h2>
       <label>وصف الصورة (للصق في أداة الصور)</label>
       <textarea readonly>${esc(pjImagePrompt(s))}</textarea>
       <div class="row"><button class="btn small" data-copy="img" data-i="${i}">نسخ وصف الصورة</button></div>
+      <label>صورة المشهد ${img ? '<span class="tag ok">مرفوعة</span>' : ''}</label>
+      ${img ? `<img class="media" src="${mediaUrl(pjId, img.name)}" alt="صورة المشهد ${n}">` : '<div class="muted">لم تُرفع صورة بعد</div>'}
+      <label class="drop" for="up-img-${i}"><b>🖼️ ${img ? 'استبدال' : 'رفع'} صورة المشهد</b>
+        <input id="up-img-${i}" type="file" accept="image/*" data-up="image" data-i="${i}"></label>
       <label>التعليق الصوتي (للصق في أداة الصوت)</label>
       <textarea class="ar" readonly>${esc(s.narration)}</textarea>
       <div class="row"><button class="btn small alt" data-copy="narr" data-i="${i}">نسخ التعليق</button></div>
-    </div>`).join('');
+      <label>صوت المشهد ${aud ? '<span class="tag ok">مرفوع</span>' : ''}</label>
+      ${aud ? `<audio class="media" controls preload="none" src="${mediaUrl(pjId, aud.name)}"></audio>` : '<div class="muted">لم يُرفع صوت بعد</div>'}
+      <label class="drop" for="up-aud-${i}"><b>🎙️ ${aud ? 'استبدال' : 'رفع'} صوت المشهد</b>
+        <span class="muted">حتى 14 ميغابايت</span>
+        <input id="up-aud-${i}" type="file" accept="audio/*" data-up="audio" data-i="${i}"></label>
+    </div>`;
+  }).join('');
   $('#pjActions').style.display = 'block';
 }
 $('#pjProject').onchange = async () => {
-  const id = $('#pjProject').value;
-  pjScenes = []; pjProj = projects.find(p => String(p.id) === id) || null;
+  pjId = $('#pjProject').value;
+  pjScenes = []; pjMedia = []; pjProj = projects.find(p => String(p.id) === pjId) || null;
   renderProduction();
-  if (!id) return;
+  if (!pjId) return;
   try {
-    const s = await api(`/api/projects/${id}/script`);
-    if (s && s.length) { pjScenes = s; renderProduction(); }
+    const s = await api(`/api/projects/${pjId}/script`);
+    if (s && s.length) { pjScenes = s; await loadPjMedia(); renderProduction(); }
     else toast('لا يوجد سيناريو لهذا المشروع. ولّده من تبويب السيناريو');
   } catch { toast('تعذّر تحميل السيناريو'); }
 };
@@ -480,10 +517,65 @@ $('#pjScenes').addEventListener('click', e => {
   if (b.dataset.copy === 'img') copyText(pjImagePrompt(s), 'تم نسخ وصف الصورة');
   else copyText(s.narration, 'تم نسخ التعليق الصوتي');
 });
+$('#pjScenes').addEventListener('change', async e => {
+  const inp = e.target.closest('input[data-up]');
+  if (!inp || !inp.files[0]) return;
+  const f = inp.files[0], n = +inp.dataset.i + 1;
+  try {
+    toast('جارٍ الرفع…');
+    if (inp.dataset.up === 'image') {
+      await uploadMedia(pjId, `scene-${n}-image.jpg`, 'image/jpeg', await shrink(f));
+    } else {
+      if (f.size > MAX_UP) return toast('الملف أكبر من 14 ميغابايت');
+      await uploadMedia(pjId, `scene-${n}-audio.${extOf(f.name, 'mp3')}`, f.type || 'audio/mpeg', await fileToB64(f));
+    }
+    await loadPjMedia(); renderProduction(); toast('تم الرفع');
+  } catch (err) { upErr(err); }
+});
 $('#copyAllImg').onclick = () =>
   copyText(pjScenes.map((s, i) => `=== Scene ${i + 1} ===\n${pjImagePrompt(s)}`).join('\n\n'), 'تم نسخ كل أوصاف الصور');
 $('#copyAllNarr').onclick = () =>
   copyText(pjScenes.map((s, i) => `مشهد ${i + 1}: ${s.title}\n${s.narration}`).join('\n\n'), 'تم نسخ كل التعليقات');
+
+/* المكتبة: ملفات كل درس */
+const IMG_EXT = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+const AUD_EXT = ['mp3', 'm4a', 'wav', 'ogg', 'aac', 'opus'];
+const VID_EXT = ['mp4', 'webm', 'mov', 'mkv', '3gp'];
+async function loadLibrary() {
+  const id = $('#lbProject').value, box = $('#lbFiles');
+  if (!id) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="card"><div class="empty">جارٍ التحميل…</div></div>';
+  try {
+    const files = await api(`/api/projects/${id}/media`);
+    if (!files.length) { box.innerHTML = '<div class="card"><div class="empty">لا توجد ملفات لهذا الدرس بعد.</div></div>'; return; }
+    files.sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
+    box.innerHTML = '<div class="card"><h2>ملفات الدرس</h2>' + files.map(f => {
+      const ext = extOf(f.name, ''), url = mediaUrl(id, f.name);
+      let preview = '';
+      if (IMG_EXT.includes(ext)) preview = `<img class="media" src="${url}" alt="${esc(f.name)}">`;
+      else if (AUD_EXT.includes(ext)) preview = `<audio class="media" controls preload="none" src="${url}"></audio>`;
+      else if (VID_EXT.includes(ext)) preview = `<video class="media" controls playsinline preload="none" src="${url}"></video>`;
+      return `<div class="file" style="margin-top:14px"><b dir="ltr">${esc(f.name)}</b>
+        <div class="muted">${fmtSize(f.size)}</div>${preview}
+        <p style="margin-top:10px"><a href="${url}" download="${esc(f.name)}">⬇️ تنزيل</a></p></div>`;
+    }).join('') + '</div>';
+  } catch (e) {
+    box.innerHTML = `<div class="card"><div class="empty">${e.status === 503 ? 'التخزين غير مضبوط' : 'تعذّر تحميل الملفات'}</div></div>`;
+  }
+}
+$('#lbProject').onchange = loadLibrary;
+$('#lbVideo').onchange = async e => {
+  const f = e.target.files[0], id = $('#lbProject').value;
+  e.target.value = '';
+  if (!f) return;
+  if (!id) return toast('اختر المشروع أولاً');
+  if (f.size > MAX_UP) return toast('الفيديو أكبر من 14 ميغابايت');
+  try {
+    toast('جارٍ رفع الفيديو…');
+    await uploadMedia(id, `video-${Date.now()}.${extOf(f.name, 'mp4')}`, f.type || 'video/mp4', await fileToB64(f));
+    toast('تم رفع الفيديو'); loadLibrary();
+  } catch (err) { upErr(err); }
+};
 
 /* الشخصية */
 $('#copyChar').onclick = async () => {
@@ -523,7 +615,7 @@ $('#copyFull').onclick = () => copyText($('#fullPrompt').value, 'تم نسخ ا�
 renderStyles();
 
 /* الإعدادات */
-const CONNS = { db: 'قاعدة البيانات (Neon)', gemini: 'Gemini', storage: 'التخزين السحابي (R2)' };
+const CONNS = { db: 'قاعدة البيانات (Neon)', gemini: 'Gemini', storage: 'التخزين السحابي' };
 async function loadSettings() {
   const box = $('#conns'); box.innerHTML = '<div class="empty">جارٍ الفحص…</div>';
   try {
