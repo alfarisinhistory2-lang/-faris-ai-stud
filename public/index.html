@@ -179,15 +179,16 @@ nav button{flex:1 0 auto;min-width:68px}
   <section class="view" id="v-produce">
     <div class="card">
       <h2>الإنتاج</h2>
-      <p class="muted">لكل مشهد وصف صورة جاهز للنسخ، ثم ارفع الصورة والصوت الناتجين فيُحفظان في مجلد الدرس.</p>
+      <p class="muted">ولّد صورة وصوت كل مشهد تلقائياً، أو انسخ الأوصاف وارفع ملفاتك. كل شيء يُحفظ في مجلد الدرس. ولّد من السيناريو المحفوظ فقط، فاحفظ تعديلاتك أولاً.</p>
       <label for="pjProject">المشروع</label>
       <select id="pjProject"><option value="">اختر مشروعاً</option></select>
     </div>
     <div id="pjScenes"></div>
     <div class="card" id="pjActions" style="display:none">
-      <div class="row">
-        <button class="btn" id="copyAllImg">نسخ كل أوصاف الصور</button>
-        <button class="btn alt" id="copyAllNarr">نسخ كل التعليقات الصوتية</button>
+      <button class="btn" id="genAll">✨ توليد كل الصور والأصوات</button>
+      <div class="row" style="margin-top:12px">
+        <button class="btn alt" id="copyAllImg">نسخ كل أوصاف الصور</button>
+        <button class="btn alt" id="copyAllNarr">نسخ كل التعليقات</button>
       </div>
     </div>
   </section>
@@ -277,9 +278,10 @@ const api = async (path, opts = {}) => {
   if (!r.ok) { const e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
   return r.json();
 };
-const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2800); };
+const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3200); };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const JSONH = { 'Content-Type': 'application/json' };
+const sleep = ms => new Promise(s => setTimeout(s, ms));
 const copyText = async (txt, okMsg) => {
   try { await navigator.clipboard.writeText(txt); toast(okMsg); }
   catch { toast('تعذّر النسخ'); }
@@ -457,7 +459,7 @@ $('#copyScript').onclick = () => {
   copyText(txt, 'تم نسخ السيناريو');
 };
 
-/* الإنتاج: أوصاف + رفع صورة وصوت لكل مشهد */
+/* الإنتاج: توليد تلقائي أو رفع يدوي لصورة وصوت كل مشهد */
 let pjScenes = [], pjProj = null, pjMedia = [], pjId = '';
 function pjImagePrompt(s) {
   const st = STYLES.find(x => x.name === (pjProj && pjProj.style)) || STYLES.find(x => x.id === styleId);
@@ -481,19 +483,25 @@ function renderProduction() {
     return `
     <div class="card pr" data-i="${i}">
       <h2><span class="num tag">${n}</span>${esc(s.title)}</h2>
-      <label>وصف الصورة (للصق في أداة الصور)</label>
+      <label>وصف الصورة</label>
       <textarea readonly>${esc(pjImagePrompt(s))}</textarea>
-      <div class="row"><button class="btn small" data-copy="img" data-i="${i}">نسخ وصف الصورة</button></div>
-      <label>صورة المشهد ${img ? '<span class="tag ok">مرفوعة</span>' : ''}</label>
-      ${img ? `<img class="media" src="${mediaUrl(pjId, img.name)}" alt="صورة المشهد ${n}">` : '<div class="muted">لم تُرفع صورة بعد</div>'}
-      <label class="drop" for="up-img-${i}"><b>🖼️ ${img ? 'استبدال' : 'رفع'} صورة المشهد</b>
+      <div class="row">
+        <button class="btn small" data-gen="image" data-i="${i}">✨ توليد الصورة</button>
+        <button class="btn small alt" data-copy="img" data-i="${i}">نسخ الوصف</button>
+      </div>
+      <label>صورة المشهد ${img ? '<span class="tag ok">جاهزة</span>' : ''}</label>
+      ${img ? `<img class="media" src="${mediaUrl(pjId, img.name)}" alt="صورة المشهد ${n}">` : '<div class="muted">لا توجد صورة بعد</div>'}
+      <label class="drop" for="up-img-${i}"><b>🖼️ رفع صورة بدلاً من التوليد</b>
         <input id="up-img-${i}" type="file" accept="image/*" data-up="image" data-i="${i}"></label>
-      <label>التعليق الصوتي (للصق في أداة الصوت)</label>
+      <label>التعليق الصوتي</label>
       <textarea class="ar" readonly>${esc(s.narration)}</textarea>
-      <div class="row"><button class="btn small alt" data-copy="narr" data-i="${i}">نسخ التعليق</button></div>
-      <label>صوت المشهد ${aud ? '<span class="tag ok">مرفوع</span>' : ''}</label>
-      ${aud ? `<audio class="media" controls preload="none" src="${mediaUrl(pjId, aud.name)}"></audio>` : '<div class="muted">لم يُرفع صوت بعد</div>'}
-      <label class="drop" for="up-aud-${i}"><b>🎙️ ${aud ? 'استبدال' : 'رفع'} صوت المشهد</b>
+      <div class="row">
+        <button class="btn small" data-gen="audio" data-i="${i}">🔊 توليد الصوت</button>
+        <button class="btn small alt" data-copy="narr" data-i="${i}">نسخ التعليق</button>
+      </div>
+      <label>صوت المشهد ${aud ? '<span class="tag ok">جاهز</span>' : ''}</label>
+      ${aud ? `<audio class="media" controls preload="none" src="${mediaUrl(pjId, aud.name)}"></audio>` : '<div class="muted">لا يوجد صوت بعد</div>'}
+      <label class="drop" for="up-aud-${i}"><b>🎙️ رفع صوت بدلاً من التوليد</b>
         <span class="muted">حتى 14 ميغابايت</span>
         <input id="up-aud-${i}" type="file" accept="audio/*" data-up="audio" data-i="${i}"></label>
     </div>`;
@@ -511,7 +519,27 @@ $('#pjProject').onchange = async () => {
     else toast('لا يوجد سيناريو لهذا المشروع. ولّده من تبويب السيناريو');
   } catch { toast('تعذّر تحميل السيناريو'); }
 };
-$('#pjScenes').addEventListener('click', e => {
+
+const genMsg = e =>
+  e.status === 429 ? 'نفدت حصة Gemini لهذا النوع. أعد المحاولة لاحقاً أو ارفع الملف يدوياً'
+  : e.status === 501 ? 'مفتاح Gemini لا يتيح نموذجاً لهذا النوع. ارفع الملف يدوياً'
+  : e.status === 400 ? 'لا يوجد سيناريو محفوظ لهذا المشهد. احفظ السيناريو أولاً'
+  : e.status === 503 ? 'التخزين غير مضبوط'
+  : 'تعذّر التوليد، أعد المحاولة';
+const genOne = (kind, i) => api(`/api/projects/${pjId}/scenes/${i + 1}/${kind}`, {
+  method: 'POST', headers: JSONH,
+  body: JSON.stringify(kind === 'image' ? { prompt: pjImagePrompt(pjScenes[i]) } : {}),
+});
+
+$('#pjScenes').addEventListener('click', async e => {
+  const g = e.target.closest('[data-gen]');
+  if (g) {
+    const kind = g.dataset.gen, i = +g.dataset.i, label = g.textContent;
+    g.disabled = true; g.textContent = 'جارٍ التوليد…';
+    try { await genOne(kind, i); await loadPjMedia(); renderProduction(); toast('تم التوليد'); }
+    catch (err) { toast(genMsg(err)); g.disabled = false; g.textContent = label; }
+    return;
+  }
   const b = e.target.closest('[data-copy]'); if (!b) return;
   const s = pjScenes[+b.dataset.i];
   if (b.dataset.copy === 'img') copyText(pjImagePrompt(s), 'تم نسخ وصف الصورة');
@@ -532,6 +560,27 @@ $('#pjScenes').addEventListener('change', async e => {
     await loadPjMedia(); renderProduction(); toast('تم الرفع');
   } catch (err) { upErr(err); }
 });
+$('#genAll').onclick = async () => {
+  const btn = $('#genAll');
+  if (!pjId || !pjScenes.length) return;
+  btn.disabled = true;
+  try {
+    for (let i = 0; i < pjScenes.length; i++) {
+      for (const kind of ['image', 'audio']) {
+        btn.textContent = `جارٍ التوليد… مشهد ${i + 1} من ${pjScenes.length} (${kind === 'image' ? 'صورة' : 'صوت'})`;
+        try { await genOne(kind, i); }
+        catch (err) {
+          if ([429, 501, 503].includes(err.status)) throw err;
+          toast(`تعذّر مشهد ${i + 1} (${kind === 'image' ? 'صورة' : 'صوت'})، سأتابع`);
+        }
+        await loadPjMedia(); renderProduction();
+        await sleep(1500);
+      }
+    }
+    toast('اكتمل التوليد');
+  } catch (err) { toast(genMsg(err)); }
+  btn.disabled = false; btn.textContent = '✨ توليد كل الصور والأصوات';
+};
 $('#copyAllImg').onclick = () =>
   copyText(pjScenes.map((s, i) => `=== Scene ${i + 1} ===\n${pjImagePrompt(s)}`).join('\n\n'), 'تم نسخ كل أوصاف الصور');
 $('#copyAllNarr').onclick = () =>
