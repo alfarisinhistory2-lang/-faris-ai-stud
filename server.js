@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const db = require('./db');
+const { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -37,6 +38,34 @@ const fail500 = (res, e) => {
   res.status(500).json({ error: 'server' });
 };
 
+/* ===== التخزين (Neon Object Storage عبر S3) ===== */
+const S3_READY = () => !!(process.env.S3_BUCKET && process.env.S3_ENDPOINT &&
+  process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY);
+let s3client = null;
+const s3 = () => s3client || (s3client = new S3Client({
+  region: process.env.S3_REGION || 'us-east-2',
+  endpoint: process.env.S3_ENDPOINT,
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: process.env.S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+  },
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
+}));
+
+async function storageStatus() {
+  if (!S3_READY()) return { ok: false, msg: 'متغيرات S3 غير مضبوطة في Render' };
+  try {
+    await s3().send(new ListObjectsV2Command({ Bucket: process.env.S3_BUCKET, MaxKeys: 1 }));
+    return { ok: true, msg: 'متصل بتخزين Neon' };
+  } catch (e) {
+    console.error('s3:', e.name, e.message);
+    return { ok: false, msg: 'تعذّر الاتصال بالتخزين' };
+  }
+}
+
+/* ===== Gemini ===== */
 const MODELS = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.8-flash-lite'];
 const sleep = ms => new Promise(s => setTimeout(s, ms));
 
@@ -78,7 +107,7 @@ app.get('/api/settings/status', async (req, res) => {
   res.json({
     db: dbs,
     gemini: process.env.GEMINI_API_KEY ? { ok: true, msg: 'المفتاح مضبوط' } : { ok: false, msg: 'GEMINI_API_KEY غير مضبوط' },
-    storage: process.env.R2_BUCKET ? { ok: true, msg: 'مضبوط' } : { ok: false, msg: 'لم يُضبط بعد (المرحلة 7)' },
+    storage: await storageStatus(),
   });
 });
 
@@ -99,6 +128,7 @@ app.post('/api/projects', async (req, res) => {
   } catch (e) { fail500(res, e); }
 });
 
+/* ===== تحليل الكتاب ===== */
 app.get('/api/projects/:id/book', async (req, res) => {
   try { res.json(await db.getBook(+req.params.id)); } catch (e) { fail500(res, e); }
 });
@@ -118,6 +148,7 @@ app.post('/api/projects/:id/book', async (req, res) => {
   } catch (e) { fail500(res, e); }
 });
 
+/* ===== السيناريو ===== */
 app.get('/api/projects/:id/script', async (req, res) => {
   try { res.json(await db.getScript(+req.params.id)); } catch (e) { fail500(res, e); }
 });
@@ -161,6 +192,55 @@ app.post('/api/projects/:id/script/save', async (req, res) => {
     await db.saveScript(+req.params.id, clean);
     res.json({ ok: true });
   } catch (e) { fail500(res, e); }
+});
+
+/* ===== ملفات الدرس (صور، صوت، فيديو) — لكل درس مجلد مستقل ===== */
+const SAFE_NAME = /^[A-Za-z0-9._-]{1,100}$/;
+
+app.post('/api/projects/:id/media', async (req, res) => {
+  try {
+    if (!S3_READY()) return res.status(503).json({ error: 'storage' });
+    const id = +req.params.id;
+    const { name, mime, data } = req.body || {};
+    if (!id || !SAFE_NAME.test(name || '') || typeof data !== 'string' || !data) return res.status(400).json({ error: 'invalid' });
+    const body = Buffer.from(data, 'base64');
+    if (!body.length || body.length > 18 * 1024 * 1024) return res.status(400).json({ error: 'size' });
+    await s3().send(new PutObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: `lesson-${id}/${name}`,
+      Body: body,
+      ContentType: typeof mime === 'string' ? mime.slice(0, 100) : 'application/octet-stream',
+    }));
+    res.json({ ok: true, name, size: body.length });
+  } catch (e) { fail500(res, e); }
+});
+
+app.get('/api/projects/:id/media', async (req, res) => {
+  try {
+    if (!S3_READY()) return res.status(503).json({ error: 'storage' });
+    const id = +req.params.id;
+    const out = await s3().send(new ListObjectsV2Command({
+      Bucket: process.env.S3_BUCKET, Prefix: `lesson-${id}/`, MaxKeys: 200,
+    }));
+    res.json((out.Contents || []).map(o => ({ name: o.Key.split('/').pop(), size: o.Size, modified: o.LastModified })));
+  } catch (e) { fail500(res, e); }
+});
+
+app.get('/api/projects/:id/media/:name', async (req, res) => {
+  try {
+    if (!S3_READY()) return res.status(503).json({ error: 'storage' });
+    const id = +req.params.id;
+    if (!SAFE_NAME.test(req.params.name)) return res.status(400).json({ error: 'invalid' });
+    const out = await s3().send(new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET, Key: `lesson-${id}/${req.params.name}`,
+    }));
+    res.set('Content-Type', out.ContentType || 'application/octet-stream');
+    if (out.ContentLength) res.set('Content-Length', String(out.ContentLength));
+    out.Body.pipe(res);
+  } catch (e) {
+    if (e.name === 'NoSuchKey') return res.status(404).json({ error: 'not found' });
+    fail500(res, e);
+  }
 });
 
 db.migrate().then(() => console.log('migrations ok')).catch(e => console.error('migrate:', e.message));
