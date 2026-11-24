@@ -37,6 +37,7 @@ const fail500 = (res, e) => {
   if (e.gemini) return res.status(502).json({ error: 'gemini' });
   res.status(500).json({ error: 'server' });
 };
+const sleep = ms => new Promise(s => setTimeout(s, ms));
 
 /* ===== التخزين (Neon Object Storage عبر S3) ===== */
 const S3_READY = () => !!(process.env.S3_BUCKET && process.env.S3_ENDPOINT &&
@@ -65,9 +66,8 @@ async function storageStatus() {
   }
 }
 
-/* ===== Gemini ===== */
+/* ===== Gemini: النصوص ===== */
 const MODELS = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.8-flash-lite'];
-const sleep = ms => new Promise(s => setTimeout(s, ms));
 
 async function gemini(parts) {
   if (!process.env.GEMINI_API_KEY) { const e = new Error('no key'); e.gemini = true; throw e; }
@@ -94,6 +94,83 @@ async function gemini(parts) {
   const e = new Error('gemini failed'); e.gemini = true; throw e;
 }
 
+/* ===== Gemini: توليد الصور والصوت ===== */
+const GEN_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+let modelCache = null, modelCacheAt = 0;
+
+async function listGenModels() {
+  if (modelCache && Date.now() - modelCacheAt < 3600000) return modelCache;
+  const r = await fetch(`${GEN_BASE}/models?pageSize=200&key=${process.env.GEMINI_API_KEY}`);
+  const j = await r.json();
+  if (!r.ok) {
+    console.error('models:', JSON.stringify(j).slice(0, 200));
+    const e = new Error('models list failed'); e.code = 'gemini'; throw e;
+  }
+  modelCache = (j.models || [])
+    .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map(m => m.name.replace('models/', ''));
+  modelCacheAt = Date.now();
+  return modelCache;
+}
+const rank = n => (/flash/.test(n) ? 0 : 2) + (/preview|exp/.test(n) ? 1 : 0);
+
+async function genMedia(kind, parts, genConfig) {
+  if (!process.env.GEMINI_API_KEY) { const e = new Error('no key'); e.code = 'gemini'; throw e; }
+  const all = await listGenModels();
+  const re = kind === 'image' ? /image/ : /tts/;
+  const models = all.filter(n => re.test(n)).sort((a, b) => rank(a) - rank(b)).slice(0, 4);
+  if (!models.length) { const e = new Error('no ' + kind + ' model'); e.code = 'nomodel'; throw e; }
+  let quota = false;
+  for (const model of models) {
+    for (let i = 0; i < 2; i++) {
+      try {
+        const r = await fetch(`${GEN_BASE}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts }], generationConfig: genConfig }),
+        });
+        const j = await r.json();
+        if (r.ok) {
+          const ps = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+          const p = ps.find(x => x.inlineData || x.inline_data);
+          if (p) {
+            const d = p.inlineData || p.inline_data;
+            return { data: Buffer.from(d.data, 'base64'), mime: d.mimeType || d.mime_type || '' };
+          }
+          console.error('gemini[' + model + '] no media:', JSON.stringify(j).slice(0, 200));
+          break;
+        }
+        console.error('gemini[' + model + ']:', JSON.stringify(j).slice(0, 200));
+        if (r.status === 429) { quota = true; break; }
+        if (r.status === 503) { await sleep(3000); continue; }
+        break;
+      } catch (e) {
+        console.error('gemini[' + model + '] error:', e.message);
+        await sleep(2000);
+      }
+    }
+  }
+  const e = new Error(quota ? 'quota' : 'gemini failed'); e.code = quota ? 'quota' : 'gemini'; throw e;
+}
+
+function genFail(res, e) {
+  console.error('gen:', e.message);
+  if (e.code === 'quota') return res.status(429).json({ error: 'quota' });
+  if (e.code === 'nomodel') return res.status(501).json({ error: 'nomodel' });
+  if (e.code === 'gemini') return res.status(502).json({ error: 'gemini' });
+  res.status(500).json({ error: 'server' });
+}
+
+function pcmToWav(pcm, rate) {
+  const ch = 1, bits = 16, h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(ch, 22); h.writeUInt32LE(rate, 24);
+  h.writeUInt32LE(rate * ch * bits / 8, 28); h.writeUInt16LE(ch * bits / 8, 32); h.writeUInt16LE(bits, 34);
+  h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
+}
+
+/* ===== الحالة والإعدادات ===== */
 app.get('/health', async (req, res) => {
   let ok = false;
   try { await db.ping(); ok = true; } catch {}
@@ -111,10 +188,22 @@ app.get('/api/settings/status', async (req, res) => {
   });
 });
 
+app.get('/api/settings/models', async (req, res) => {
+  try {
+    const all = await listGenModels();
+    res.json({
+      image: all.filter(n => /image/.test(n)),
+      tts: all.filter(n => /tts/.test(n)),
+      text: all.filter(n => /flash/.test(n) && !/image|tts/.test(n)).slice(0, 10),
+    });
+  } catch (e) { fail500(res, e); }
+});
+
 app.post('/api/settings/migrate', async (req, res) => {
   try { await db.migrate(); res.json({ ok: true }); } catch (e) { fail500(res, e); }
 });
 
+/* ===== المشاريع ===== */
 app.get('/api/projects', async (req, res) => {
   try { res.json(await db.listProjects()); } catch (e) { fail500(res, e); }
 });
@@ -194,7 +283,7 @@ app.post('/api/projects/:id/script/save', async (req, res) => {
   } catch (e) { fail500(res, e); }
 });
 
-/* ===== ملفات الدرس (صور، صوت، فيديو) — لكل درس مجلد مستقل ===== */
+/* ===== ملفات الدرس (صور، صوت، فيديو): لكل درس مجلد مستقل ===== */
 const SAFE_NAME = /^[A-Za-z0-9._-]{1,100}$/;
 
 app.post('/api/projects/:id/media', async (req, res) => {
@@ -241,6 +330,55 @@ app.get('/api/projects/:id/media/:name', async (req, res) => {
     if (e.name === 'NoSuchKey') return res.status(404).json({ error: 'not found' });
     fail500(res, e);
   }
+});
+
+/* ===== توليد صورة مشهد ===== */
+app.post('/api/projects/:id/scenes/:n/image', async (req, res) => {
+  try {
+    if (!S3_READY()) return res.status(503).json({ error: 'storage' });
+    const id = +req.params.id, n = +req.params.n;
+    const prompt = req.body && req.body.prompt;
+    if (!id || !(n >= 1 && n <= 20) || typeof prompt !== 'string' || prompt.length < 10 || prompt.length > 6000)
+      return res.status(400).json({ error: 'invalid' });
+    const out = await genMedia('image', [{ text: prompt }], { responseModalities: ['TEXT', 'IMAGE'] });
+    const ext = /png/i.test(out.mime) ? 'png' : /webp/i.test(out.mime) ? 'webp' : 'jpg';
+    const name = `scene-${n}-image.${ext}`;
+    await s3().send(new PutObjectCommand({
+      Bucket: process.env.S3_BUCKET, Key: `lesson-${id}/${name}`, Body: out.data, ContentType: out.mime || 'image/png',
+    }));
+    res.json({ ok: true, name });
+  } catch (e) { genFail(res, e); }
+});
+
+/* ===== توليد صوت مشهد (من التعليق المحفوظ في السيناريو) ===== */
+app.post('/api/projects/:id/scenes/:n/audio', async (req, res) => {
+  try {
+    if (!S3_READY()) return res.status(503).json({ error: 'storage' });
+    const id = +req.params.id, n = +req.params.n;
+    if (!id || !(n >= 1 && n <= 20)) return res.status(400).json({ error: 'invalid' });
+    const script = await db.getScript(id);
+    const scene = script && script[n - 1];
+    if (!scene || !scene.narration) return res.status(400).json({ error: 'no script' });
+    const text = 'Read the following Arabic text aloud in a warm, clear, friendly teacher voice at a calm pace suitable for school children:\n' + scene.narration;
+    const out = await genMedia('tts', [{ text }], {
+      responseModalities: ['AUDIO'],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+    });
+    let buf = out.data, mime = 'audio/wav';
+    if (/^RIFF/.test(buf.slice(0, 4).toString('latin1'))) {
+      mime = 'audio/wav';
+    } else if (/L16|pcm/i.test(out.mime)) {
+      const m = /rate=(\d+)/.exec(out.mime);
+      buf = pcmToWav(buf, m ? +m[1] : 24000);
+    } else if (/mpeg|mp3/i.test(out.mime)) {
+      mime = 'audio/mpeg';
+    }
+    const name = `scene-${n}-audio.${mime === 'audio/mpeg' ? 'mp3' : 'wav'}`;
+    await s3().send(new PutObjectCommand({
+      Bucket: process.env.S3_BUCKET, Key: `lesson-${id}/${name}`, Body: buf, ContentType: mime,
+    }));
+    res.json({ ok: true, name });
+  } catch (e) { genFail(res, e); }
 });
 
 db.migrate().then(() => console.log('migrations ok')).catch(e => console.error('migrate:', e.message));
