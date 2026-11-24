@@ -359,10 +359,10 @@ app.post('/api/projects/:id/scenes/:n/audio', async (req, res) => {
     const script = await db.getScript(id);
     const scene = script && script[n - 1];
     if (!scene || !scene.narration) return res.status(400).json({ error: 'no script' });
-    const text = 'Read the following Arabic text aloud in a warm, clear, friendly teacher voice at a calm pace suitable for school children:\n' + scene.narration;
+    const text = 'Read the following Arabic text aloud in a warm, clear, friendly adult male teacher voice at a calm pace suitable for school children:\n' + scene.narration;
     const out = await genMedia('tts', [{ text }], {
       responseModalities: ['AUDIO'],
-      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: process.env.TTS_VOICE || 'Charon' } } },
     });
     let buf = out.data, mime = 'audio/wav';
     if (/^RIFF/.test(buf.slice(0, 4).toString('latin1'))) {
